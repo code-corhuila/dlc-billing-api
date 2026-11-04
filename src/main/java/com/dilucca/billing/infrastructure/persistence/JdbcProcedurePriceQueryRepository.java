@@ -9,8 +9,10 @@ import java.util.List;
 import java.util.Objects;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
+import org.springframework.stereotype.Repository;
 
-public final class JdbcProcedurePriceQueryRepository
+@Repository
+public class JdbcProcedurePriceQueryRepository
         implements ProcedurePriceQueryService {
 
     private static final String COUNT_SQL = """
