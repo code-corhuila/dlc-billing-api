@@ -2,6 +2,7 @@ package com.dilucca.billing.api.pricing;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -40,5 +41,49 @@ class ProcedurePriceControllerTest {
                 .andExpect(jsonPath("$.meta.totalPages").value(0));
 
         verify(queryService).list(1, 20);
+    }
+
+    @Test
+    void rejectsInvalidPaginationParameters() throws Exception {
+        ProcedurePriceQueryService queryService =
+                mock(ProcedurePriceQueryService.class);
+
+        MockMvc mvc = MockMvcBuilders.standaloneSetup(
+                new ProcedurePriceController(queryService))
+                .build();
+
+        String[][] invalidCases = {
+                {"0", "20"},
+                {"-1", "20"},
+                {"1", "0"},
+                {"1", "101"},
+                {"abc", "20"}
+        };
+
+        for (String[] values : invalidCases) {
+            mvc.perform(get("/procedure-prices")
+                            .param("page", values[0])
+                            .param("limit", values[1]))
+                    .andExpect(status().isBadRequest());
+        }
+
+        verifyNoInteractions(queryService);
+    }
+
+    @Test
+    void rejectsPaginationOffsetOverflow() throws Exception {
+        ProcedurePriceQueryService queryService =
+                mock(ProcedurePriceQueryService.class);
+
+        MockMvc mvc = MockMvcBuilders.standaloneSetup(
+                new ProcedurePriceController(queryService))
+                .build();
+
+        mvc.perform(get("/procedure-prices")
+                        .param("page", "2147483647")
+                        .param("limit", "100"))
+                .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(queryService);
     }
 }
