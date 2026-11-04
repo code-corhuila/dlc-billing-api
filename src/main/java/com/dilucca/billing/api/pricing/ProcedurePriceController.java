@@ -24,7 +24,8 @@ public class ProcedurePriceController {
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int limit) {
 
-        if (page < 1 || limit < 1 || limit > 100) {
+        if (page < 1 || limit < 1 || limit > 100
+                || (long) (page - 1) * limit > Integer.MAX_VALUE) {
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
                     "Invalid pagination parameters");
