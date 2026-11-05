@@ -6,6 +6,9 @@ import java.time.Instant;
 import java.util.Objects;
 import java.util.UUID;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.ResultSetExtractor;
+import org.springframework.jdbc.datasource.DataSourceTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 public final class JdbcProcedurePriceRepository {
 
@@ -24,6 +27,22 @@ public final class JdbcProcedurePriceRepository {
                 created_at,
                 updated_at
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """;
+
+    private static final String LATEST_PRICE_SQL = """
+            SELECT price_id, version, valid_from, valid_to, status
+            FROM billing.procedure_prices
+            WHERE procedure_code = ?
+            ORDER BY version DESC
+            LIMIT 1
+            """;
+
+    private static final String CLOSE_PRICE_SQL = """
+            UPDATE billing.procedure_prices
+            SET valid_to = ?, updated_at = ?
+            WHERE price_id = ?
+              AND valid_to IS NULL
+              AND status = 'ACTIVE'
             """;
 
     private final JdbcTemplate jdbcTemplate;
@@ -68,5 +87,99 @@ public final class JdbcProcedurePriceRepository {
                 createdBy,
                 Timestamp.from(now),
                 Timestamp.from(now));
+    }
+
+    public void saveNextVersion(
+            UUID priceId,
+            ProcedurePriceCatalog price,
+            UUID createdBy,
+            Instant now) {
+
+        Objects.requireNonNull(priceId, "priceId is required");
+        Objects.requireNonNull(price, "price is required");
+        Objects.requireNonNull(createdBy, "createdBy is required");
+        Objects.requireNonNull(now, "now is required");
+
+        TransactionTemplate transaction = new TransactionTemplate(
+                new DataSourceTransactionManager(
+                        Objects.requireNonNull(
+                                jdbcTemplate.getDataSource(),
+                                "DataSource is required")));
+
+        transaction.executeWithoutResult(status -> {
+            lockProcedure(price.procedureCode());
+
+            LatestPrice previous = findLatest(price.procedureCode());
+            int nextVersion = 1;
+
+            if (previous != null) {
+                if (!"ACTIVE".equals(previous.status())
+                        || previous.validTo() != null
+                        || !price.validity().validFrom()
+                                .isAfter(previous.validFrom())) {
+                    throw new IllegalArgumentException(
+                            "Invalid price validity transition");
+                }
+
+                if (previous.version() == Integer.MAX_VALUE) {
+                    throw new IllegalArgumentException(
+                            "Price version limit exceeded");
+                }
+
+                int updated = jdbcTemplate.update(
+                        CLOSE_PRICE_SQL,
+                        Timestamp.from(price.validity().validFrom()),
+                        Timestamp.from(now),
+                        previous.priceId());
+
+                if (updated != 1) {
+                    throw new IllegalStateException(
+                            "Previous price could not be closed");
+                }
+
+                nextVersion = previous.version() + 1;
+            }
+
+            save(priceId, price, nextVersion, createdBy, now);
+        });
+    }
+
+    private void lockProcedure(String procedureCode) {
+        jdbcTemplate.query(
+                "SELECT pg_advisory_xact_lock(31703, hashtext(?))",
+                (ResultSetExtractor<Void>) resultSet -> null,
+                procedureCode);
+    }
+
+    private LatestPrice findLatest(String procedureCode) {
+        return jdbcTemplate.query(
+                LATEST_PRICE_SQL,
+                resultSet -> {
+                    if (!resultSet.next()) {
+                        return null;
+                    }
+
+                    Timestamp validTo =
+                            resultSet.getTimestamp("valid_to");
+
+                    return new LatestPrice(
+                            resultSet.getObject("price_id", UUID.class),
+                            resultSet.getInt("version"),
+                            resultSet.getTimestamp("valid_from")
+                                    .toInstant(),
+                            validTo == null
+                                    ? null
+                                    : validTo.toInstant(),
+                            resultSet.getString("status"));
+                },
+                procedureCode);
+    }
+
+    private record LatestPrice(
+            UUID priceId,
+            int version,
+            Instant validFrom,
+            Instant validTo,
+            String status) {
     }
 }
