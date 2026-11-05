@@ -2,6 +2,7 @@ package com.dilucca.billing.api.pricing;
 
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.time.Instant;
@@ -79,15 +80,54 @@ class ProcedurePriceSecurityTest {
                 .andExpect(status().isForbidden());
     }
 
+    @Test
+    void rejectsUnauthenticatedPriceCreation() throws Exception {
+        mvc.perform(post(PRICES_PATH))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void allowsAdministratorToReachPriceCreationValidation()
+            throws Exception {
+        when(jwtDecoder.decode("administrator-write-token"))
+                .thenReturn(staffJwt(
+                        "administrator-write-token", "ADMINISTRATOR"));
+
+        mvc.perform(post(PRICES_PATH)
+                        .header("Authorization",
+                                "Bearer administrator-write-token"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void rejectsDentistPriceCreation() throws Exception {
+        assertRejectedWriteRole("dentist-write-token", "DENTIST");
+    }
+
+    @Test
+    void rejectsSecretaryAssistantPriceCreation() throws Exception {
+        assertRejectedWriteRole(
+                "secretary-write-token", "SECRETARY_ASSISTANT");
+    }
+
     private void assertAllowedRole(String token, String role)
             throws Exception {
-
         when(jwtDecoder.decode(token))
                 .thenReturn(staffJwt(token, role));
 
         mvc.perform(get(PRICES_PATH)
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk());
+    }
+
+    private void assertRejectedWriteRole(String token, String role)
+            throws Exception {
+        when(jwtDecoder.decode(token))
+                .thenReturn(staffJwt(token, role));
+
+        mvc.perform(post(PRICES_PATH)
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isForbidden());
     }
 
     private Jwt staffJwt(String token, String role) {
