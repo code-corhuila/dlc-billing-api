@@ -15,6 +15,9 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 class ProcedurePriceControllerTest {
 
+    private static final String PRICES_PATH =
+            "/api/v1/procedure-prices";
+
     @Test
     void returnsPaginatedProcedurePrices() throws Exception {
         ProcedurePriceQueryService queryService =
@@ -29,7 +32,7 @@ class ProcedurePriceControllerTest {
                 new ProcedurePriceController(queryService))
                 .build();
 
-        mvc.perform(get("/procedure-prices")
+        mvc.perform(get(PRICES_PATH)
                         .param("page", "1")
                         .param("limit", "20"))
                 .andExpect(status().isOk())
@@ -61,7 +64,7 @@ class ProcedurePriceControllerTest {
         };
 
         for (String[] values : invalidCases) {
-            mvc.perform(get("/procedure-prices")
+            mvc.perform(get(PRICES_PATH)
                             .param("page", values[0])
                             .param("limit", values[1]))
                     .andExpect(status().isBadRequest());
@@ -79,10 +82,25 @@ class ProcedurePriceControllerTest {
                 new ProcedurePriceController(queryService))
                 .build();
 
-        mvc.perform(get("/procedure-prices")
+        mvc.perform(get(PRICES_PATH)
                         .param("page", "2147483647")
                         .param("limit", "100"))
                 .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(queryService);
+    }
+
+    @Test
+    void doesNotExposeLegacyProcedurePricesRoute() throws Exception {
+        ProcedurePriceQueryService queryService =
+                mock(ProcedurePriceQueryService.class);
+
+        MockMvc mvc = MockMvcBuilders.standaloneSetup(
+                new ProcedurePriceController(queryService))
+                .build();
+
+        mvc.perform(get("/procedure-prices"))
+                .andExpect(status().isNotFound());
 
         verifyNoInteractions(queryService);
     }
