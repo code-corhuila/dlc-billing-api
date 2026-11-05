@@ -53,12 +53,17 @@ class ProcedurePriceSecurityTest {
 
     @Test
     void allowsAdministratorToReadProcedurePrices() throws Exception {
-        when(jwtDecoder.decode("administrator-token"))
-                .thenReturn(staffJwt("administrator-token", "ADMINISTRATOR"));
+        assertAllowedRole("administrator-token", "ADMINISTRATOR");
+    }
 
-        mvc.perform(get("/procedure-prices")
-                        .header("Authorization", "Bearer administrator-token"))
-                .andExpect(status().isOk());
+    @Test
+    void allowsDentistToReadProcedurePrices() throws Exception {
+        assertAllowedRole("dentist-token", "DENTIST");
+    }
+
+    @Test
+    void allowsSecretaryAssistantToReadProcedurePrices() throws Exception {
+        assertAllowedRole("secretary-token", "SECRETARY_ASSISTANT");
     }
 
     @Test
@@ -69,6 +74,17 @@ class ProcedurePriceSecurityTest {
         mvc.perform(get("/procedure-prices")
                         .header("Authorization", "Bearer unauthorized-token"))
                 .andExpect(status().isForbidden());
+    }
+
+    private void assertAllowedRole(String token, String role)
+            throws Exception {
+
+        when(jwtDecoder.decode(token))
+                .thenReturn(staffJwt(token, role));
+
+        mvc.perform(get("/procedure-prices")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk());
     }
 
     private Jwt staffJwt(String token, String role) {
