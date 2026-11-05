@@ -31,6 +31,10 @@ public class BillingSecurityConfiguration {
                                 "ADMINISTRATOR",
                                 "DENTIST",
                                 "SECRETARY_ASSISTANT")
+                        .requestMatchers(
+                                HttpMethod.POST,
+                                "/api/v1/procedure-prices")
+                        .hasRole("ADMINISTRATOR")
                         .anyRequest()
                         .denyAll())
                 .oauth2ResourceServer(oauth2 -> oauth2
