@@ -24,6 +24,9 @@ import org.springframework.test.web.servlet.MockMvc;
 @AutoConfigureMockMvc
 class ProcedurePriceSecurityTest {
 
+    private static final String PRICES_PATH =
+            "/api/v1/procedure-prices";
+
     @Autowired
     private MockMvc mvc;
 
@@ -38,13 +41,13 @@ class ProcedurePriceSecurityTest {
 
     @Test
     void rejectsUnauthenticatedProcedurePriceRequests() throws Exception {
-        mvc.perform(get("/procedure-prices"))
+        mvc.perform(get(PRICES_PATH))
                 .andExpect(status().isUnauthorized());
     }
 
     @Test
     void rejectsUntrustedIdentityHeaders() throws Exception {
-        mvc.perform(get("/procedure-prices")
+        mvc.perform(get(PRICES_PATH)
                         .header("X-User-Id",
                                 "00000000-0000-0000-0000-000000000001")
                         .header("X-User-Role", "ADMINISTRATOR"))
@@ -71,7 +74,7 @@ class ProcedurePriceSecurityTest {
         when(jwtDecoder.decode("unauthorized-token"))
                 .thenReturn(staffJwt("unauthorized-token", "UNAUTHORIZED"));
 
-        mvc.perform(get("/procedure-prices")
+        mvc.perform(get(PRICES_PATH)
                         .header("Authorization", "Bearer unauthorized-token"))
                 .andExpect(status().isForbidden());
     }
@@ -82,7 +85,7 @@ class ProcedurePriceSecurityTest {
         when(jwtDecoder.decode(token))
                 .thenReturn(staffJwt(token, role));
 
-        mvc.perform(get("/procedure-prices")
+        mvc.perform(get(PRICES_PATH)
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk());
     }

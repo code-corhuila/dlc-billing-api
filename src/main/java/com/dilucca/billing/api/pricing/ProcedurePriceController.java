@@ -9,7 +9,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
 @RestController
-@RequestMapping("/procedure-prices")
+@RequestMapping("/api/v1/procedure-prices")
 public class ProcedurePriceController {
 
     private final ProcedurePriceQueryService queryService;

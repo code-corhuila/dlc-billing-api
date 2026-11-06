@@ -26,7 +26,7 @@ public class BillingSecurityConfiguration {
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers(
                                 HttpMethod.GET,
-                                "/procedure-prices")
+                                "/api/v1/procedure-prices")
                         .hasAnyRole(
                                 "ADMINISTRATOR",
                                 "DENTIST",
