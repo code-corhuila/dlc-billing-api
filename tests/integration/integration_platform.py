@@ -17,7 +17,8 @@ ORIGIN="http://localhost:8080"
 
 
 class Platform:
-    def __init__(self):
+    def __init__(self,origin=ORIGIN):
+        self.origin=origin
         self.prefix="billing-e2e-"+uuid4().hex[:10]
         self.names=[]
         self.network_created=False
@@ -113,7 +114,7 @@ class Platform:
             IAM_JWT_KID="integration-staff",IAM_JWT_ISSUER="integration-staff-issuer",IAM_JWT_AUDIENCE="integration-staff",
             IAM_INTERNAL_SERVICE_JWKS_URI="http://service-keys/service-jwks.json",
             IAM_INTERNAL_SERVICE_ISSUER="integration-service-authority",IAM_INTERNAL_SERVICE_AUDIENCE="integration-iam",
-            IAM_AUTH_ALLOWED_ORIGIN=ORIGIN,IAM_TRUSTED_GATEWAY_IP="127.0.0.1",
+            IAM_AUTH_ALLOWED_ORIGIN=self.origin,IAM_TRUSTED_GATEWAY_IP="127.0.0.1",
             IAM_EMAIL_SMTP_HOST="127.0.0.1",IAM_EMAIL_SMTP_PORT="9",IAM_EMAIL_SMTP_USER="unconfigured",
             IAM_EMAIL_SMTP_PASSWORD=self.secrets[6],IAM_EMAIL_FROM="integration@localhost.invalid",
             IAM_RABBITMQ_HOST="broker",IAM_RABBITMQ_USER="integration",IAM_RABBITMQ_PASSWORD=self.secrets[5],
@@ -148,7 +149,7 @@ class Platform:
             """,{"SEED_PASSWORD":self.password})
 
     def request(self,method,path,body=None,token=None,key=None,cookie=None,proof=None):
-        headers={"Origin":ORIGIN,"X-Correlation-Id":str(uuid4()),"Sec-Fetch-Site":"same-origin"}
+        headers={"Origin":self.origin,"X-Correlation-Id":str(uuid4()),"Sec-Fetch-Site":"same-origin"}
         if token: headers["Authorization"]="Bearer "+token
         if key: headers["Idempotency-Key"]=key
         if cookie: headers["Cookie"]=cookie
