@@ -67,10 +67,14 @@ Additional rule operations require `billing.additional_price_rules` from `billin
 - Provisioning and renewal of the separate `identity:validate` service credential for the connected private IAM session check. Staff JWTs cannot substitute for it.
 - Remaining Billing REST endpoints defined in the OpenAPI contract.
 - Invoice and payment persistence.
-- Operational API Gateway routing and end-to-end integration with the shell and Billing portal.
+- Browser acceptance of the Billing portal within the real shell; local HTTP
+  routing, catalog writes, IAM session renewal and revocation are verified in
+  [the shell integration report](docs/integration/real-shell-local-verification.md).
 - Integrated QA validation before release promotion.
 
 These capabilities must follow the official contracts and must not introduce undocumented endpoints or events.
+See [the delivery gates](docs/integration/billing-delivery-gates.md) for the
+verified catalog scope and the missing invoice, payment and encounter work.
 
 ## Related Repositories
 
