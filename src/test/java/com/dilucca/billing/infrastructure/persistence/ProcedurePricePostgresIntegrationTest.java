@@ -2,6 +2,7 @@ package com.dilucca.billing.infrastructure.persistence;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.dilucca.billing.domain.pricing.ProcedurePriceCatalog;
 import java.math.BigDecimal;
@@ -10,6 +11,7 @@ import java.time.Instant;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 
@@ -189,6 +191,46 @@ class ProcedurePricePostgresIntegrationTest {
                     WHERE procedure_code = ?
                     """,
                     procedureCode);
+        }
+    }
+
+    @Test
+    @EnabledIfEnvironmentVariable(
+            named = "BILLING_TEST_JDBC_URL",
+            matches = "jdbc:postgresql:.*")
+    void restoresPreviousValidityWhenNextVersionInsertFails() {
+        JdbcTemplate jdbc = jdbcTemplate();
+        JdbcProcedurePriceRepository repository =
+                new JdbcProcedurePriceRepository(jdbc);
+        UUID priceId = UUID.randomUUID();
+        UUID actorId = UUID.randomUUID();
+        String code = "ROLLBACK-" + UUID.randomUUID();
+        Instant originalStart = Instant.parse("2026-01-01T00:00:00Z");
+        Instant originalAudit = Instant.parse("2026-01-02T00:00:00Z");
+        try {
+            repository.save(priceId,
+                    new ProcedurePriceCatalog(code, "Original", "150000.00", originalStart),
+                    1, actorId, originalAudit);
+
+            assertThrows(DuplicateKeyException.class, () ->
+                    repository.saveNextVersion(priceId,
+                            new ProcedurePriceCatalog(code, "Replacement", "175000.00",
+                                    Instant.parse("2026-02-01T00:00:00Z")),
+                            actorId, Instant.parse("2026-02-02T00:00:00Z")));
+
+            jdbc.query("SELECT * FROM billing.procedure_prices WHERE procedure_code = ?",
+                    (org.springframework.jdbc.core.RowCallbackHandler) row -> {
+                        assertEquals(priceId, row.getObject("price_id", UUID.class));
+                        assertEquals(1, row.getInt("version"));
+                        assertNull(row.getTimestamp("valid_to"));
+                        assertEquals(originalAudit, row.getTimestamp("updated_at").toInstant());
+                        assertEquals(new BigDecimal("150000.00"), row.getBigDecimal("base_price"));
+                    }, code);
+            assertEquals(1, jdbc.queryForObject(
+                    "SELECT COUNT(*) FROM billing.procedure_prices WHERE procedure_code = ?",
+                    Integer.class, code));
+        } finally {
+            jdbc.update("DELETE FROM billing.procedure_prices WHERE price_id = ?", priceId);
         }
     }
 }
