@@ -113,9 +113,13 @@ public final class JdbcProcedurePriceRepository {
             int nextVersion = 1;
 
             if (previous != null) {
+                // Compare the same rounded timestamp that the PostgreSQL driver will persist.
+                Timestamp storedStart = Objects.requireNonNull(jdbcTemplate.queryForObject(
+                        "SELECT CAST(? AS TIMESTAMP WITH TIME ZONE)", Timestamp.class,
+                        Timestamp.from(price.validity().validFrom())));
                 if (!"ACTIVE".equals(previous.status())
                         || previous.validTo() != null
-                        || !price.validity().validFrom()
+                        || !storedStart.toInstant()
                                 .isAfter(previous.validFrom())) {
                     throw new IllegalArgumentException(
                             "Invalid price validity transition");
@@ -128,7 +132,7 @@ public final class JdbcProcedurePriceRepository {
 
                 int updated = jdbcTemplate.update(
                         CLOSE_PRICE_SQL,
-                        Timestamp.from(price.validity().validFrom()),
+                        storedStart,
                         Timestamp.from(now),
                         previous.priceId());
 
