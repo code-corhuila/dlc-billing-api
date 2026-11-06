@@ -159,6 +159,14 @@ class BillingJwtDecoderTest {
     }
 
     @Test
+    void stillRejectsAnEmptyStaffRoleList() {
+        Jwt source = validClaimsExcept("none");
+        Jwt token = Jwt.withTokenValue("empty-roles").header("alg", "RS256")
+                .claims(claims -> claims.putAll(source.getClaims())).claim("roles", List.of()).build();
+        assertTrue(BillingJwtDecoderConfiguration.requiredClaims().validate(token).hasErrors());
+    }
+
+    @Test
     void rejectsSignatureFromUnauthorizedKey() throws Exception {
         String token = signedToken(
                 unauthorizedKey, ISSUER, AUDIENCE, 3600);
