@@ -45,6 +45,7 @@ The local implementation includes:
 - Required procedure catalog field validation.
 - JDBC persistence and paginated queries against PostgreSQL.
 - `GET /api/v1/procedure-prices` for Administrator, Dentist, and Secretary/Assistant.
+- `GET /api/v1/additional-price-rules` for Administrator and Secretary/Assistant, with pagination, exact unit prices, and stable ordering.
 - `POST /api/v1/procedure-prices` for Administrator, with strict JSON validation and a UUID `Idempotency-Key`.
 - Atomic price version creation, closure of previous validity, and preservation of historical prices.
 - Persistent idempotency scoped by actor, operation, and procedure; identical retries return the stored HTTP 201 response and Location, while changed content returns HTTP 409.
@@ -57,6 +58,8 @@ Successful price creation returns HTTP 201 with a relative `Location` identifyin
 JWT verification requires the actual IAM deployment values for `BILLING_IAM_JWKS_URI`, `IAM_JWT_ISSUER`, and `IAM_JWT_AUDIENCE`. Do not use test issuers, keys, or addresses in a deployed environment.
 
 The POST requires `billing.idempotency_records` from the `billing-005-create-idempotency-records` changeset in `dlc-billing-db`. That migration remains on its local development branch and must be reviewed and promoted before deploying the POST to another environment.
+
+Additional rule listing requires `billing.additional_price_rules` from `billing-006-create-additional-price-rules`, currently on the local `feat/billing-additional-price-rules-schema` database branch. The table enforces positive COP amounts, allowed item types, unique versions, and nonoverlapping active validity intervals. The additional-rule POST is not implemented yet.
 
 ### Pending Integration
 
