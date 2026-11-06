@@ -1,0 +1,10 @@
+# Opt-in overlay with compose.yml after provision of the private owner credential.
+services:
+  billing-service:
+    environment:
+      BILLING_APPOINTMENTS_SERVICE_TOKEN_FILE: /run/billing-appointments/service-token
+    volumes:
+      - type: bind
+        source: ${BILLING_APPOINTMENTS_SECRETS_DIR:?Set the provisioned Appointments credential directory}
+        target: /run/billing-appointments
+        read_only: true
