@@ -53,6 +53,10 @@ The local implementation includes:
 - At least seven days of idempotency retention, committed in the same transaction as the price write.
 - RS256 JWT signature verification through JWKS, issuer/audience validation, required claims, and role authorization.
 - HTTP, cryptographic, PostgreSQL concurrency, and rollback tests.
+- `GET /api/v1/billable-items` with filtered counts, stable pagination and a
+  minimized financial projection for Administrator and Secretary/Assistant.
+  It requires DB changesets 008/009; separately authorized Dentist reads and
+  Clinical ingestion remain pending. See [the read evidence](docs/integration/billable-item-reads.md).
 
 Successful price creation returns HTTP 201 with a relative `Location` identifying the created price. The administrator identity is derived from the verified JWT subject, never from the request body or identity headers.
 
