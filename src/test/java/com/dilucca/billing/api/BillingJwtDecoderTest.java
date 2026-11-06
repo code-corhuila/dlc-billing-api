@@ -153,6 +153,12 @@ class BillingJwtDecoderTest {
     }
 
     @Test
+    void acceptsTheEmptyPermissionsArrayIssuedByRealIam() throws Exception {
+        String token = signedToken(authorizedKey, ISSUER, AUDIENCE, 3600, List.of());
+        assertNotNull(signedJwtDecoder.decode(token));
+    }
+
+    @Test
     void rejectsSignatureFromUnauthorizedKey() throws Exception {
         String token = signedToken(
                 unauthorizedKey, ISSUER, AUDIENCE, 3600);
@@ -198,6 +204,12 @@ class BillingJwtDecoderTest {
             String audience,
             long expirationOffsetSeconds) throws Exception {
 
+        return signedToken(key, issuer, audience, expirationOffsetSeconds, List.of("pricing:read"));
+    }
+
+    private static String signedToken(KeyPair key, String issuer, String audience,
+            long expirationOffsetSeconds, List<String> permissions) throws Exception {
+
         Instant now = Instant.now();
 
         JWTClaimsSet claims = new JWTClaimsSet.Builder()
@@ -210,7 +222,7 @@ class BillingJwtDecoderTest {
                 .jwtID("test-token-id")
                 .claim("sid", "test-session-id")
                 .claim("roles", List.of("ADMINISTRATOR"))
-                .claim("permissions", List.of("pricing:read"))
+                .claim("permissions", permissions)
                 .build();
 
         SignedJWT jwt = new SignedJWT(
