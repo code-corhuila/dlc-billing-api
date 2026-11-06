@@ -117,3 +117,13 @@ an unbounded response-body wait before their fixes. The final Java 21 / PostgreS
 16 run passed 100 tests, with zero failures, errors or skipped tests. This includes
 27 private-client boundary tests and the existing catalog persistence, concurrency,
 rollback, idempotency and JWT tests. No new runtime secret or dependency was added.
+
+## Runtime packaging follow-up: 2026-11-06
+
+Local `chore/billing-runtime-container` adds the previously missing Dockerfile
+and Compose manifest. The service is `billing-service:8080` on an explicitly
+selected external network, with no published deployment port. See
+[Billing runtime deployment](billing-runtime.md) for required configuration and
+the five passing packaging checks. A fresh JAR passed all 100 Maven tests.
+Owner runtime grants, private eligibility wiring and Gateway routes remain pending;
+this packaging increment does not establish a complete live integration.

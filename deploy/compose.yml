@@ -1,0 +1,19 @@
+name: dlc-billing-api-${BILLING_STAGE:?Set BILLING_STAGE to develop, qa or main}
+
+services:
+  billing-service:
+    build:
+      context: ..
+    image: dlc-billing-api:${BILLING_STAGE}
+    env_file:
+      - ${BILLING_ENV_FILE:?Set BILLING_ENV_FILE to the stage-specific private environment file}
+    restart: unless-stopped
+    expose:
+      - "8080"
+    networks:
+      - platform
+
+networks:
+  platform:
+    external: true
+    name: ${BILLING_PLATFORM_NETWORK:?Set BILLING_PLATFORM_NETWORK to the stage network}

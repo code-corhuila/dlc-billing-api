@@ -1,0 +1,4 @@
+**
+!Dockerfile
+!target/
+!target/dlc-billing-api-0.1.0-SNAPSHOT.jar
