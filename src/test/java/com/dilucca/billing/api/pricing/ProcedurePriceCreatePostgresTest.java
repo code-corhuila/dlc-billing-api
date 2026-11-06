@@ -31,6 +31,13 @@ import org.springframework.test.web.servlet.MvcResult;
 @AutoConfigureMockMvc
 @EnabledIfEnvironmentVariable(named = "BILLING_TEST_JDBC_URL", matches = "jdbc:postgresql:.*")
 class ProcedurePriceCreatePostgresTest {
+    @org.springframework.test.context.bean.override.mockito.MockitoBean
+    com.dilucca.billing.infrastructure.security.IamSessionValidationClient iamSession;
+    @org.junit.jupiter.api.BeforeEach
+    void eligibleIamSession() {
+        org.mockito.Mockito.when(iamSession.isActive(org.mockito.ArgumentMatchers.anyString())).thenReturn(true);
+    }
+
     @TestConfiguration
     static class Database {
         @Bean
