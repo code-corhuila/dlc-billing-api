@@ -156,3 +156,11 @@ public email-verification request. Five tests passed against the real Billing
 image, not a substitute service; protected requests reached its JWT rejection,
 private validation stayed inaccessible and a stopped owner returned 503. Public
 IAM operations returned 503 because no real IAM was running. NGINX/Compose validate.
+
+## Real owner lifecycle follow-up: 2026-11-06
+
+The subsequent isolated [real IAM verification](real-iam-local-verification.md)
+passed login, authenticated catalog writes, concurrency, persistent replay,
+versioning, role denials and logout revocation through the actual Gateway.
+It uses real owner runtimes and disposable test trust/identities. The report
+records reproducible inputs and the remaining browser/stage delivery gates.
