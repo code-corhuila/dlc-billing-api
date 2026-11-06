@@ -21,10 +21,18 @@ def docker(*args, env=None):
 
 class ComposeTest(unittest.TestCase):
     def test_requires_explicit_stage_environment_file_and_network(self):
-        env = {k: v for k, v in os.environ.items() if not k.startswith("BILLING_")}
-        result = docker("compose", "-f", "deploy/compose.yml", "config", "--quiet", env=env)
-        self.assertNotEqual(0, result.returncode)
-        self.assertIn("BILLING_STAGE", result.stderr)
+        with tempfile.TemporaryDirectory() as directory:
+            config = Path(directory) / "runtime.env"
+            config.write_text("", encoding="utf-8")
+            selected = dict(BILLING_STAGE="develop", BILLING_ENV_FILE=str(config),
+                            BILLING_PLATFORM_NETWORK="billing-deployment-test-network")
+            for missing in selected:
+                with self.subTest(missing=missing):
+                    env = {k: v for k, v in os.environ.items() if not k.startswith("BILLING_")}
+                    env.update({k: v for k, v in selected.items() if k != missing})
+                    result = docker("compose", "-f", "deploy/compose.yml", "config", "--quiet", env=env)
+                    self.assertNotEqual(0, result.returncode)
+                    self.assertIn(missing, result.stderr)
 
     def test_joins_only_selected_network_and_has_no_published_ports(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -60,19 +68,26 @@ class RuntimeTest(unittest.TestCase):
             SPRING_DATASOURCE_PASSWORD=cls.environment["BILLING_TEST_DB_PASSWORD"],
             BILLING_IAM_JWKS_URI="http://auth-service:8080/api/v1/auth/jwks",
             IAM_JWT_ISSUER="container-verification-only", IAM_JWT_AUDIENCE="container-verification-only")
+        cls.http_network = "billing-runtime-http-test-" + uuid4().hex
+        result = docker("network", "create", cls.http_network)
+        if result.returncode:
+            raise AssertionError("Could not create isolated HTTP verification network")
+        cls.addClassCleanup(lambda: docker("network", "rm", cls.http_network))
 
     def start(self, configure_iam=True):
         name = "billing-runtime-test-" + uuid4().hex
-        args = ["run", "-d", "--name", name, "--network", "dlc-billing-test-net",
+        args = ["run", "-d", "--name", name, "--network", self.http_network,
                 "-p", "127.0.0.1::8080"]
-        for key in self.environment:
-            if key.startswith("SPRING_DATASOURCE_") or configure_iam and key in (
-                    "BILLING_IAM_JWKS_URI", "IAM_JWT_ISSUER", "IAM_JWT_AUDIENCE"):
-                args.extend(["-e", key])
+        keys = ["SPRING_DATASOURCE_URL", "SPRING_DATASOURCE_USERNAME", "SPRING_DATASOURCE_PASSWORD"]
+        if configure_iam:
+            keys += ["BILLING_IAM_JWKS_URI", "IAM_JWT_ISSUER", "IAM_JWT_AUDIENCE"]
+        for key in keys:
+            args.extend(["-e", key])
         result = docker(*args, IMAGE, env=self.environment)
         self.assertEqual(0, result.returncode, "Could not start isolated Billing container")
         self.addCleanup(lambda: docker("rm", name))
         self.addCleanup(lambda: docker("stop", name))
+        self.assertEqual(0, docker("network", "connect", "dlc-billing-test-net", name).returncode)
         return name
 
     def test_image_uses_nonroot_user(self):
@@ -85,6 +100,7 @@ class RuntimeTest(unittest.TestCase):
     def test_runtime_rejects_missing_forged_and_malformed_authentication(self):
         name = self.start()
         mapping = docker("port", name, "8080/tcp").stdout.strip()
+        self.assertTrue(mapping.startswith("127.0.0.1:"), "Missing loopback test port")
         base = "http://" + mapping
         deadline = time.monotonic() + 90
         while True:
@@ -92,6 +108,7 @@ class RuntimeTest(unittest.TestCase):
                 urlopen(base + "/api/v1/procedure-prices", timeout=2).close()
             except HTTPError as error:
                 self.assertEqual(401, error.code)
+                error.close()
                 break
             except (URLError, ConnectionError, TimeoutError):
                 self.assertLess(time.monotonic(), deadline, "Billing failed to become HTTP-ready")
@@ -107,6 +124,7 @@ class RuntimeTest(unittest.TestCase):
                             urlopen(Request(base + "/api/v1/" + path, method=method, headers=headers), timeout=5)
                         self.assertEqual(401, denied.exception.code)
                         self.assertIn("Bearer", denied.exception.headers["WWW-Authenticate"])
+                        denied.exception.close()
 
     def test_runtime_refuses_to_start_without_iam_configuration(self):
         name = self.start(configure_iam=False)
