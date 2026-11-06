@@ -3,6 +3,7 @@ package com.dilucca.billing.api.pricing;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 import java.time.Instant;
@@ -22,6 +23,10 @@ import org.springframework.test.web.servlet.MockMvc;
 @AutoConfigureMockMvc
 class AdditionalPriceRuleHttpTest {
     private static final String PATH = "/api/v1/additional-price-rules";
+    private static final String BODY = """
+            {"code":"MATERIAL", "itemType":"ADDITIONAL_MATERIAL", "unitPrice":"1000.00",
+             "requiresApproval":false, "validFrom":"2026-01-01T00:00:00Z"}
+            """;
     @Autowired MockMvc mvc;
     @MockitoBean JdbcTemplate jdbc;
     @MockitoBean JwtDecoder decoder;
@@ -64,6 +69,38 @@ class AdditionalPriceRuleHttpTest {
             mvc.perform(get(PATH).header("Authorization", "Bearer ADMINISTRATOR")
                     .param("page", parameters[0]).param("limit", parameters[1]))
                     .andExpect(status().isBadRequest());
+        }
+        verifyNoInteractions(jdbc);
+    }
+
+    @Test
+    void rejectsInvalidRuleCreationBeforeQuerying() throws Exception {
+        for (String body : List.of("", "null", "[]", "{}", "{",
+                BODY.replace("false", "true"), BODY.replace("false", "\"false\""),
+                BODY.replace("ADDITIONAL_MATERIAL", "UNSUPPORTED"),
+                BODY.replace("\"code\":\"MATERIAL\"", "\"code\":\" \""),
+                BODY.replace("1000.00", "0.00"), BODY.replace("1000.00", "1.001"),
+                BODY.replace("\"1000.00\"", "1000.00"), BODY.replace("1000.00", "1000000000000.00"),
+                BODY.replace("2026-01-01T00:00:00Z", "2026-01-01"),
+                BODY.replace("}", ",\"expression\":\"amount * 2\"}"))) {
+            mvc.perform(post(PATH).header("Authorization", "Bearer ADMINISTRATOR")
+                    .header("Idempotency-Key", "4108e44f-7db0-471b-95e6-cc1d8f1742b9")
+                    .contentType("application/json").content(body)).andExpect(status().isBadRequest());
+        }
+        for (String key : List.of("invalid", "1-1-1-1-1")) {
+            mvc.perform(post(PATH).header("Authorization", "Bearer ADMINISTRATOR")
+                    .header("Idempotency-Key", key).contentType("application/json").content(BODY))
+                    .andExpect(status().isBadRequest());
+        }
+        verifyNoInteractions(jdbc);
+    }
+
+    @Test
+    void restrictsRuleCreationToAdministrator() throws Exception {
+        mvc.perform(post(PATH)).andExpect(status().isUnauthorized());
+        for (String role : List.of("DENTIST", "SECRETARY_ASSISTANT")) {
+            mvc.perform(post(PATH).header("Authorization", "Bearer " + role)
+                    .contentType("application/json").content(BODY)).andExpect(status().isForbidden());
         }
         verifyNoInteractions(jdbc);
     }
