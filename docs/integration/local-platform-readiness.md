@@ -21,6 +21,9 @@ Raw local evidence is in `target/gateway-iam-verification/` (ignored).
 
 Remote refs were refreshed without merging or publishing branches. Older local
 working copies must not be mistaken for the current upstream implementation.
+Official documentation was checked against `origin/main` at `ca7ce69`: the
+Gateway, Billing and internal-session OpenAPI contracts were unchanged; Auth's
+new identity-email delivery requirements were included in the assessment.
 
 | Component / revision | Existing deployment and actual listener |
 | --- | --- |
@@ -105,3 +108,12 @@ platform Compose is available. Nothing in this investigation changes official
 contracts, production data, or the previously passing POST implementation.
 The independent private-session transport tests exercise its HTTP boundary only;
 they do not claim that a live IAM deployment or successful staff login exists.
+
+## Validation of this increment
+
+On local branch `feat/billing-iam-session-client`, based on the verified POST
+commit `7a16840`, TDD reproduced the missing client, ambiguous JSON acceptance and
+an unbounded response-body wait before their fixes. The final Java 21 / PostgreSQL
+16 run passed 100 tests, with zero failures, errors or skipped tests. This includes
+27 private-client boundary tests and the existing catalog persistence, concurrency,
+rollback, idempotency and JWT tests. No new runtime secret or dependency was added.
