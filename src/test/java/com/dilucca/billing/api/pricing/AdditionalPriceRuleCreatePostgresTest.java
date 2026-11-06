@@ -32,6 +32,7 @@ import org.springframework.test.web.servlet.MvcResult;
 class AdditionalPriceRuleCreatePostgresTest {
     @Autowired MockMvc mvc;
     @Autowired JdbcTemplate jdbc;
+    @Autowired tools.jackson.databind.json.JsonMapper mapper;
     @MockitoBean JwtDecoder decoder;
     private final UUID actor = UUID.randomUUID();
     private final UUID key = UUID.randomUUID();
@@ -117,6 +118,89 @@ class AdditionalPriceRuleCreatePostgresTest {
     private int receipts() {
         return jdbc.queryForObject("SELECT COUNT(*) FROM billing.idempotency_records WHERE actor_id = ?",
                 Integer.class, actor.toString());
+    }
+
+    @Test
+    void receiptFailureRollsBackTheRuleAndPreviousValidity() throws Exception {
+        send(key, body("150000.01", "2026-01-01T00:00:00Z"), 201);
+        var failingJdbc = new JdbcTemplate(jdbc.getDataSource()) {
+            @Override
+            public int update(String sql, Object... args) {
+                if (sql.contains("INSERT INTO billing.idempotency_records")) {
+                    return super.update("INSERT INTO billing.idempotency_records (record_id) VALUES (?)",
+                            UUID.randomUUID());
+                }
+                return super.update(sql, args);
+            }
+        };
+        var service = new com.dilucca.billing.infrastructure.persistence.JdbcAdditionalPriceRuleCreationService(
+                failingJdbc, mapper);
+        UUID failedKey = UUID.randomUUID();
+        var request = new com.dilucca.billing.domain.pricing.AdditionalPriceRuleCatalog(
+                code, "ADDITIONAL_MATERIAL", "175000.02", Instant.parse("2026-02-01T00:00:00Z"));
+        assertThrows(org.springframework.dao.DataIntegrityViolationException.class,
+                () -> service.create(failedKey, actor, request));
+        assertEquals(1, receipts());
+        assertEquals(1, jdbc.queryForObject("SELECT COUNT(*) FROM billing.additional_price_rules "
+                + "WHERE rule_code = ?", Integer.class, code));
+        assertNull(jdbc.queryForObject("SELECT valid_to FROM billing.additional_price_rules "
+                + "WHERE rule_code = ?", java.sql.Timestamp.class, code));
+        send(failedKey, body("175000.02", "2026-02-01T00:00:00Z"), 201);
+        assertEquals(2, receipts());
+    }
+
+    @Test
+    void acceptsEveryContractTypeAndScopesTheKeyByRule() throws Exception {
+        int index = 0;
+        for (String type : List.of("ADDITIONAL_MATERIAL", "ADDITIONAL_PROCEDURE",
+                "COMPLEXITY_ADJUSTMENT", "OTHER_AUTHORIZED_CHARGE")) {
+            String request = body("150000.01", "2026-01-01T00:00:00Z")
+                    .replace(code, code + "-" + index++).replace("ADDITIONAL_MATERIAL", type);
+            mvc.perform(post("/api/v1/additional-price-rules").header("Authorization", "Bearer admin")
+                    .header("Idempotency-Key", key).contentType("application/json").content(request))
+                    .andExpect(status().isCreated()).andExpect(jsonPath("$.itemType").value(type))
+                    .andExpect(jsonPath("$.requiresApproval").value(false));
+        }
+        assertEquals(4, receipts());
+    }
+
+    @Test
+    void serializesDistinctKeysContendingForOneRule() throws Exception {
+        send(key, body("150000.01", "2026-01-01T00:00:00Z"), 201);
+        try (var blocker = jdbc.getDataSource().getConnection(); var executor = Executors.newFixedThreadPool(2)) {
+            blocker.setAutoCommit(false);
+            try (var lock = blocker.prepareStatement("SELECT pg_advisory_xact_lock(31705, hashtext(?))")) {
+                lock.setString(1, code);
+                lock.execute();
+            }
+            java.util.concurrent.Callable<MvcResult> write = () -> mvc.perform(
+                    post("/api/v1/additional-price-rules").header("Authorization", "Bearer admin")
+                            .header("Idempotency-Key", UUID.randomUUID()).contentType("application/json")
+                            .content(body("175000.02", "2026-02-01T00:00:00Z"))).andReturn();
+            var first = executor.submit(write);
+            var second = executor.submit(write);
+            try {
+                long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+                int waiting;
+                do {
+                    waiting = jdbc.queryForObject("""
+                            SELECT COUNT(*) FROM pg_locks WHERE locktype = 'advisory' AND classid = 31705
+                            AND objid = (hashtext(?)::bigint & 4294967295) AND NOT granted
+                            AND database = (SELECT oid FROM pg_database WHERE datname = current_database())
+                            """, Integer.class, code);
+                    if (waiting == 2) break;
+                    Thread.sleep(20);
+                } while (System.nanoTime() < deadline);
+                assertEquals(2, waiting, "Both requests must contend for the rule lock");
+            } finally {
+                blocker.rollback();
+            }
+            assertEquals(List.of(201, 409), List.of(first.get(20, TimeUnit.SECONDS).getResponse().getStatus(),
+                    second.get(20, TimeUnit.SECONDS).getResponse().getStatus()).stream().sorted().toList());
+        }
+        assertEquals(2, receipts());
+        assertEquals(List.of(1, 2), jdbc.queryForList("SELECT version FROM billing.additional_price_rules "
+                + "WHERE rule_code = ? ORDER BY version", Integer.class, code));
     }
 
     private MvcResult send(UUID requestKey, String body, int status) throws Exception {
