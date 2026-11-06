@@ -12,6 +12,13 @@ import org.springframework.stereotype.Repository;
 @Repository
 public class JdbcBillableItemQueryRepository {
     private final JdbcTemplate jdbc;
+    static final org.springframework.jdbc.core.RowMapper<BillableItem> MAPPER = (rs,row) ->
+            new BillableItem(rs.getObject("item_id", UUID.class), rs.getObject("patient_id", UUID.class),
+                    rs.getObject("procedure_id", UUID.class), rs.getString("description"),
+                    rs.getBigDecimal("quantity").toPlainString(), rs.getBigDecimal("unit_price").setScale(2).toPlainString(),
+                    rs.getString("currency"), rs.getBoolean("approval_required"),
+                    rs.getTimestamp("created_at").toInstant(), rs.getTimestamp("updated_at").toInstant(),
+                    rs.getInt("version"), rs.getString("status"));
 
     public JdbcBillableItemQueryRepository(JdbcTemplate jdbc) {
         this.jdbc = Objects.requireNonNull(jdbc);
@@ -32,13 +39,7 @@ public class JdbcBillableItemQueryRepository {
                 SELECT item_id, patient_id, procedure_id, description, quantity, unit_price,
                        currency, approval_required, created_at, updated_at, version, status
                 FROM billing.billable_items
-                """+where+" ORDER BY created_at ASC, item_id ASC LIMIT ? OFFSET ?", (rs, row) ->
-                new BillableItem(rs.getObject("item_id", UUID.class), rs.getObject("patient_id", UUID.class),
-                        rs.getObject("procedure_id", UUID.class), rs.getString("description"),
-                        rs.getBigDecimal("quantity").toPlainString(), rs.getBigDecimal("unit_price").setScale(2).toPlainString(),
-                        rs.getString("currency"), rs.getBoolean("approval_required"),
-                        rs.getTimestamp("created_at").toInstant(), rs.getTimestamp("updated_at").toInstant(),
-                        rs.getInt("version"), rs.getString("status")), parameters.toArray());
+                """+where+" ORDER BY created_at ASC, item_id ASC LIMIT ? OFFSET ?", MAPPER, parameters.toArray());
         return new BillableItemPage(items, new PaginatedMeta(page, limit, total,
                 Math.toIntExact(total/limit + (total%limit == 0 ? 0 : 1))));
     }
