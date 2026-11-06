@@ -134,6 +134,23 @@ class ProcedurePriceCreatePostgresTest {
     }
 
     @Test
+    void comparesValidityAtDatabasePrecisionWithoutConsumingConflictingKeys() throws Exception {
+        String initial = body("150000.00", "2026-01-01T00:00:00.000000100Z");
+        MvcResult first = send(key, initial, "admin", 201);
+        UUID replacementKey = UUID.randomUUID();
+        send(replacementKey, body("175000.00", "2026-01-01T00:00:00.000000200Z"), "admin", 409);
+        assertEquals(1, receiptCount());
+        assertNull(jdbc.queryForObject("SELECT valid_to FROM billing.procedure_prices "
+                + "WHERE procedure_code = ?", java.sql.Timestamp.class, code));
+        send(replacementKey, body("175000.00", "2026-01-01T00:00:00.000000600Z"), "admin", 201);
+        assertEquals(first.getResponse().getContentAsString(),
+                send(key, initial, "admin", 201).getResponse().getContentAsString());
+        assertEquals(2, receiptCount());
+        assertEquals(List.of(1, 2), jdbc.queryForList("SELECT version FROM billing.procedure_prices "
+                + "WHERE procedure_code = ? ORDER BY version", Integer.class, code));
+    }
+
+    @Test
     void receiptInsertFailureRollsBackPriceAndPreviousValidity() throws Exception {
         send(key, body("150000.00", "2026-01-01T00:00:00Z"), "admin", 201);
         var failingJdbc = new JdbcTemplate(jdbc.getDataSource()) {
