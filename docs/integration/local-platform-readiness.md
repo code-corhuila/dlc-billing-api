@@ -142,3 +142,17 @@ business execution, including replayed writes. Credentials are reread from a
 read-only mounted directory and must be provisioned/renewed externally. The updated
 JAR passed 105 Java tests and all five real-container packaging checks. No live
 IAM login or complete end-to-end success is asserted by these boundary tests.
+
+The real IAM issuer emits an empty `permissions` array; Billing now accepts that
+required string-array claim while still requiring nonempty staff roles and all
+signature/issuer/audience/identity checks. A signed-token regression test reproduced
+the former rejection. Final Maven verification passed 107 tests with no skips.
+
+Gateway `origin/develop` advanced to `fdbed71` with the previously missing owner
+routes and the Annex F presence-only edge controls (now reflected in official docs
+at `6953a34`). Local `feat/billing-auth-owner-routing` replaces the provisional
+`billing-api` target with the actual `billing-service:8080` and permits the approved
+public email-verification request. Five tests passed against the real Billing
+image, not a substitute service; protected requests reached its JWT rejection,
+private validation stayed inaccessible and a stopped owner returned 503. Public
+IAM operations returned 503 because no real IAM was running. NGINX/Compose validate.
