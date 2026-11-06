@@ -37,5 +37,23 @@ class TestServiceIdentity {
         var signature=Signature.getInstance("SHA256withRSA"); signature.initSign(service.getPrivate());
         signature.update((header+"."+claims).getBytes(StandardCharsets.US_ASCII));
         Files.writeString(root.resolve("billing/service-token"),header+"."+claims+"."+encoded(signature.sign()));
+        Files.writeString(root.resolve("service-public.pem"),pem("PUBLIC KEY",service.getPublic().getEncoded()));
+        Files.createDirectories(root.resolve("billing-appointments"));
+        Files.createDirectories(root.resolve("appointments"));
+        token(root.resolve("billing-appointments/service-token"),service,"billing-integration",
+                "integration-appointments","appointments:encounter-status:read");
+        token(root.resolve("appointments/iam-token"),service,"appointments-integration",
+                "integration-iam","identity:validate");
+    }
+
+    static void token(Path file,KeyPair key,String subject,String audience,String scope) throws Exception {
+        long now=Instant.now().getEpochSecond();
+        String content=encoded("{\"alg\":\"RS256\",\"kid\":\"integration-service\"}")+"."+encoded(
+                "{\"sub\":\""+subject+"\",\"iss\":\"integration-service-authority\",\"aud\":\""+audience
+                +"\",\"scope\":\""+scope+"\",\"iat\":"+now+",\"exp\":"+(now+600)
+                +",\"jti\":\""+UUID.randomUUID()+"\"}");
+        var signature=Signature.getInstance("SHA256withRSA"); signature.initSign(key.getPrivate());
+        signature.update(content.getBytes(StandardCharsets.US_ASCII));
+        Files.writeString(file,content+"."+encoded(signature.sign()));
     }
 }

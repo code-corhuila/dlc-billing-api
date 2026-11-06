@@ -13,14 +13,14 @@ data model; this report changes neither contract nor business authorization.
 | Shell/Gateway | Real assets and authenticated HTTP forwarding; `/api/v1` deployment prefix established | Browser session and Secure-cookie acceptance, stage TLS |
 | Billable items | Owner-local snapshots and real filtered GET for Administrator/Assistant; see [read evidence](billable-item-reads.md) | Clinical ingestion, encounter transitions and separately authorized Dentist reads |
 | Manual charges | Portal HTTP adapter exists; no API controller or persistence | Care authority/correlation, exact quantity/price, admission/closure serialization and outbox |
-| Invoices | Owner-local persistence and list/detail API; see [invoice reads](invoice-reads.md) | Draft creation from owned UNBILLED sources, administrative finalization, immutable issuance and PDF |
+| Invoices | List/detail and atomic draft POST with real IAM/Appointments validation; see [draft evidence](invoice-draft-real-owners.md) | Clinical source production/declaration, immutable issuance and PDF |
 | Payments | Portal HTTP registration/history adapters exist; no API controller or persistence | Atomic locked balance updates, idempotency, immutable payment history and notifications |
 | Integration events | Real broker starts in isolated tests | Owner inbox/outbox, event publication/consumption and notification delivery |
 
-The API implements catalog controllers, billable-item reads and invoice reads.
-Its security configuration denies unmatched requests. Therefore an invoice
-failure after fixing forwarding is not automatically another Gateway routing
-defect: invoice creation, issuance, payments and PDF still lack owner operations.
+The API implements catalog controllers, billable-item reads, invoice reads and
+draft creation. Draft writes require an owner-issued Appointments service
+credential and fail closed if validation is unavailable. Unmatched operations
+remain denied: issuance, payments and PDF still lack owner operations.
 Do not resolve it by enabling a route that returns fabricated invoices or by
 falling back to the standalone Portal's demonstration data.
 
@@ -28,8 +28,10 @@ falling back to the standalone Portal's demonstration data.
 
 Build the owner-local billable snapshot and encounter persistence before draft
 invoice creation. Clinical completion/declaration and encounter admission must
-follow ADR-015/ADR-017; a remote status read followed by an independent write
-does not serialize against care closure. Missing external authority must deny
+follow ADR-015/ADR-017; a remote status read followed by an independent manual
+charge write does not serialize against care closure. Drafts instead validate
+the owner's terminal FINALIZADA fact for every stored source appointment.
+Missing external authority must deny
 the dependent operation, while local persistence and transaction tests proceed.
 
 Invoice persistence/read work can then progress using explicitly synthetic
