@@ -36,24 +36,35 @@ Authentication, authorization, and external API routing are coordinated with the
 
 ## Current Implementation
 
-The following domain validations are implemented:
+The local implementation includes:
 
 - Exact monetary validation using `BigDecimal`.
 - Positive procedure prices in COP.
 - Procedure price validity periods.
 - Detection of overlapping validity intervals.
 - Required procedure catalog field validation.
+- JDBC persistence and paginated queries against PostgreSQL.
+- `GET /api/v1/procedure-prices` for Administrator, Dentist, and Secretary/Assistant.
+- `POST /api/v1/procedure-prices` for Administrator, with strict JSON validation and a UUID `Idempotency-Key`.
+- Atomic price version creation, closure of previous validity, and preservation of historical prices.
+- Persistent idempotency scoped by actor, operation, and procedure; identical retries return the stored HTTP 201 response and Location, while changed content returns HTTP 409.
+- At least seven days of idempotency retention, committed in the same transaction as the price write.
+- RS256 JWT signature verification through JWKS, issuer/audience validation, required claims, and role authorization.
+- HTTP, cryptographic, PostgreSQL concurrency, and rollback tests.
 
-The initial domain implementation includes 20 automated tests.
+Successful price creation returns HTTP 201 with a relative `Location` identifying the created price. The administrator identity is derived from the verified JWT subject, never from the request body or identity headers.
+
+JWT verification requires the actual IAM deployment values for `BILLING_IAM_JWKS_URI`, `IAM_JWT_ISSUER`, and `IAM_JWT_AUDIENCE`. Do not use test issuers, keys, or addresses in a deployed environment.
+
+The POST requires `billing.idempotency_records` from the `billing-005-create-idempotency-records` changeset in `dlc-billing-db`. That migration remains on its local development branch and must be reviewed and promoted before deploying the POST to another environment.
 
 ### Pending Integration
 
-- PostgreSQL repository integration.
-- Procedure price version persistence.
-- REST endpoints defined in the Billing OpenAPI contract.
-- Authorization enforcement.
+- IAM session revocation and eligibility checks through the private session-validation contract. This requires a separately provisioned service credential with `identity:validate`; staff JWTs cannot substitute for it.
+- Remaining Billing REST endpoints defined in the OpenAPI contract.
 - Invoice and payment persistence.
-- Integration testing with the distributed platform.
+- Operational API Gateway routing and end-to-end integration with the shell and Billing portal.
+- Integrated QA validation before release promotion.
 
 These capabilities must follow the official contracts and must not introduce undocumented endpoints or events.
 
@@ -75,7 +86,7 @@ Requirements:
 Run automated tests:
 
 ```bash
-mvn test
+mvn clean test
 ```
 
 Build the application:
@@ -85,6 +96,8 @@ mvn clean package
 ```
 
 The generated application artifact is located in the `target/` directory.
+
+PostgreSQL tests are opt-in: supply `BILLING_TEST_JDBC_URL`, `BILLING_TEST_DB_USER`, and `BILLING_TEST_DB_PASSWORD` for an isolated migrated test database before running the suite. Without the JDBC URL, database tests are skipped; a successful unit-test run alone does not verify persistence. Keep credentials out of logs, source files, and commits. Always clean compiled output when switching branches.
 
 ## Branching and Contributions
 
