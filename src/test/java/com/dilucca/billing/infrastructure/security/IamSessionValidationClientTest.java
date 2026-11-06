@@ -22,6 +22,7 @@ class IamSessionValidationClientTest {
     private int status = 200;
     private String response = "{\"active\":true}";
     private int delayMillis;
+    private boolean delayBody;
     private final AtomicInteger calls = new AtomicInteger();
     private final AtomicReference<String> service = new AtomicReference<>("service-token");
     private final AtomicReference<String> authorization = new AtomicReference<>();
@@ -36,12 +37,12 @@ class IamSessionValidationClientTest {
             method.set(exchange.getRequestMethod());
             authorization.set(exchange.getRequestHeaders().getFirst("Authorization"));
             body.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
-            try { Thread.sleep(delayMillis); }
-            catch (InterruptedException interrupted) { Thread.currentThread().interrupt(); }
+            if (!delayBody) pause();
             exchange.getResponseHeaders().set("Content-Type", "application/json");
             exchange.getResponseHeaders().set("Location", origin + "/must-not-follow");
             byte[] bytes = response.getBytes(StandardCharsets.UTF_8);
             exchange.sendResponseHeaders(status, bytes.length);
+            if (delayBody) pause();
             try (var output = exchange.getResponseBody()) { output.write(bytes); }
         });
         server.createContext("/must-not-follow", exchange -> {
@@ -55,6 +56,11 @@ class IamSessionValidationClientTest {
 
     @AfterEach
     void stop() { server.stop(0); }
+
+    private void pause() {
+        try { Thread.sleep(delayMillis); }
+        catch (InterruptedException interrupted) { Thread.currentThread().interrupt(); }
+    }
 
     private IamSessionValidationClient client() {
         return new IamSessionValidationClient(origin, service::get, Duration.ofSeconds(2), true);
@@ -95,7 +101,8 @@ class IamSessionValidationClientTest {
 
     @ParameterizedTest
     @ValueSource(strings = {"{}", "[]", "null", "true", "broken", "{\"active\":\"true\"}",
-            "{\"active\":1}", "{\"active\":true,\"roles\":[]}", "{\"active\":true} {}"})
+            "{\"active\":1}", "{\"active\":true,\"roles\":[]}", "{\"active\":true} {}",
+            "{\"active\":false,\"active\":true}"})
     void rejectsMalformedOrUnexpectedResponses(String value) {
         response = value;
         assertThrows(IllegalStateException.class, () -> client().isActive("staff-token"));
@@ -131,5 +138,14 @@ class IamSessionValidationClientTest {
         var error = assertThrows(IllegalStateException.class, () -> brokenProvider.isActive("staff-token"));
         assertEquals("IAM session validation unavailable", error.getMessage());
         assertNull(error.getCause());
+    }
+
+    @Test
+    void boundsTheResponseBodyAfterHeadersArrive() {
+        delayBody = true;
+        delayMillis = 1500;
+        var bounded = new IamSessionValidationClient(origin, service::get, Duration.ofMillis(500), true);
+        assertThrows(IllegalStateException.class, () -> bounded.isActive("staff-token"));
+        assertEquals(1, calls.get());
     }
 }
