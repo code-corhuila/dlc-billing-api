@@ -7,7 +7,10 @@ import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
+import tools.jackson.core.StreamReadFeature;
 import tools.jackson.databind.DeserializationFeature;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -18,6 +21,7 @@ public final class IamSessionValidationClient {
     private final Duration timeout;
     private final HttpClient transport;
     private final JsonMapper mapper = JsonMapper.builder()
+            .enable(StreamReadFeature.STRICT_DUPLICATE_DETECTION)
             .enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS).build();
 
     public IamSessionValidationClient(URI origin, Supplier<String> serviceCredential,
@@ -43,6 +47,7 @@ public final class IamSessionValidationClient {
 
     /** No eligibility cache or automatic application retry; Auth decides on every invocation. */
     public boolean isActive(String accessToken) {
+        CompletableFuture<HttpResponse<String>> pending = null;
         try {
             String credential = serviceCredential.get();
             if (!tokenText(accessToken) || !tokenText(credential) || credential.equals(accessToken)) {
@@ -55,7 +60,8 @@ public final class IamSessionValidationClient {
                     .POST(HttpRequest.BodyPublishers.ofString(
                             mapper.writeValueAsString(Map.of("accessToken", accessToken))))
                     .build();
-            var response = transport.send(request, HttpResponse.BodyHandlers.ofString());
+            pending = transport.sendAsync(request, HttpResponse.BodyHandlers.ofString());
+            var response = pending.get(timeout.toNanos(), TimeUnit.NANOSECONDS);
             if (response.statusCode() != 200) throw unavailable();
             var result = mapper.readTree(response.body());
             if (result == null || !result.isObject() || result.size() != 1
@@ -69,6 +75,8 @@ public final class IamSessionValidationClient {
         } catch (Exception failure) {
             // Do not propagate transport, provider or JSON details that may contain credentials.
             throw unavailable();
+        } finally {
+            if (pending != null && !pending.isDone()) pending.cancel(true);
         }
     }
 
