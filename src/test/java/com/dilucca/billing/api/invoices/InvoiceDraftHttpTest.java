@@ -97,7 +97,7 @@ class InvoiceDraftHttpTest {
         when(drafts.create(any(),any(),any())).thenThrow(new InvoiceDraftConflict("INVOICE_SOURCE_CONFLICT"));
         mvc.perform(request(body())).andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error").value("INVOICE_SOURCE_CONFLICT"));
-        when(drafts.create(any(),any(),any())).thenThrow(new InvoiceDraftUnavailable());
+        doThrow(new InvoiceDraftUnavailable()).when(drafts).create(any(),any(),any());
         mvc.perform(request(body())).andExpect(status().isServiceUnavailable())
                 .andExpect(jsonPath("$.error").value("SERVICE_UNAVAILABLE"));
     }
