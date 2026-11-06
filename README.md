@@ -64,7 +64,7 @@ Additional rule operations require `billing.additional_price_rules` from `billin
 
 ### Pending Integration
 
-- IAM session revocation and eligibility checks through the private session-validation contract. This requires a separately provisioned service credential with `identity:validate`; staff JWTs cannot substitute for it.
+- Provisioning and renewal of the separate `identity:validate` service credential for the connected private IAM session check. Staff JWTs cannot substitute for it.
 - Remaining Billing REST endpoints defined in the OpenAPI contract.
 - Invoice and payment persistence.
 - Operational API Gateway routing and end-to-end integration with the shell and Billing portal.

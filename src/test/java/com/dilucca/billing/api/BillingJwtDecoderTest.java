@@ -41,6 +41,13 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
         "IAM_JWT_AUDIENCE=billing-test-audience"
 })
 class BillingJwtDecoderTest {
+    @org.springframework.test.context.bean.override.mockito.MockitoBean
+    com.dilucca.billing.infrastructure.security.IamSessionValidationClient iamSession;
+    @org.junit.jupiter.api.BeforeEach
+    void eligibleIamSession() {
+        org.mockito.Mockito.when(iamSession.isActive(org.mockito.ArgumentMatchers.anyString())).thenReturn(true);
+    }
+
 
     private static final String ISSUER = "iam-test-issuer";
     private static final String AUDIENCE = "billing-test-audience";
