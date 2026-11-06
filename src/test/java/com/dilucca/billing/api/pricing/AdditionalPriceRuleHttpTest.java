@@ -22,6 +22,13 @@ import org.springframework.test.web.servlet.MockMvc;
 @SpringBootTest(properties = "spring.autoconfigure.exclude=org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration")
 @AutoConfigureMockMvc
 class AdditionalPriceRuleHttpTest {
+    @org.springframework.test.context.bean.override.mockito.MockitoBean
+    com.dilucca.billing.infrastructure.security.IamSessionValidationClient iamSession;
+    @org.junit.jupiter.api.BeforeEach
+    void eligibleIamSession() {
+        org.mockito.Mockito.when(iamSession.isActive(org.mockito.ArgumentMatchers.anyString())).thenReturn(true);
+    }
+
     private static final String PATH = "/api/v1/additional-price-rules";
     private static final String BODY = """
             {"code":"MATERIAL", "itemType":"ADDITIONAL_MATERIAL", "unitPrice":"1000.00",

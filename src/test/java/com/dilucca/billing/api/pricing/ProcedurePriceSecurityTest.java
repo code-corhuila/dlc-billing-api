@@ -24,6 +24,13 @@ import org.springframework.test.web.servlet.MockMvc;
 })
 @AutoConfigureMockMvc
 class ProcedurePriceSecurityTest {
+    @org.springframework.test.context.bean.override.mockito.MockitoBean
+    com.dilucca.billing.infrastructure.security.IamSessionValidationClient iamSession;
+    @org.junit.jupiter.api.BeforeEach
+    void eligibleIamSession() {
+        org.mockito.Mockito.when(iamSession.isActive(org.mockito.ArgumentMatchers.anyString())).thenReturn(true);
+    }
+
 
     private static final String PRICES_PATH =
             "/api/v1/procedure-prices";

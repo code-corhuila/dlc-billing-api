@@ -7,6 +7,13 @@ services:
     image: dlc-billing-api:${BILLING_STAGE}
     env_file:
       - ${BILLING_ENV_FILE:?Set BILLING_ENV_FILE to the stage-specific private environment file}
+    environment:
+      BILLING_IAM_SERVICE_TOKEN_FILE: /run/billing-iam/service-token
+    volumes:
+      - type: bind
+        source: ${BILLING_IAM_SECRETS_DIR:?Set BILLING_IAM_SECRETS_DIR to the provisioned credential directory}
+        target: /run/billing-iam
+        read_only: true
     restart: unless-stopped
     expose:
       - "8080"
