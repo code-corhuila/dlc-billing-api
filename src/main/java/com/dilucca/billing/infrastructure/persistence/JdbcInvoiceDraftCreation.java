@@ -9,7 +9,7 @@ import java.util.*;
 import org.springframework.jdbc.core.JdbcTemplate;
 import tools.jackson.databind.json.JsonMapper;
 
-/** Not exposed until the HTTP boundary and authoritative owner client are wired. */
+/** Atomic allocation after HTTP authentication and authoritative owner validation. */
 public final class JdbcInvoiceDraftCreation {
     private final JdbcTemplate jdbc;
     private final JsonMapper mapper;
