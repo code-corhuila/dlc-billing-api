@@ -82,6 +82,9 @@ These capabilities must follow the official contracts and must not introduce und
 
 ## Build and Test
 
+Runtime container and Compose instructions are in
+[Billing runtime deployment](docs/integration/billing-runtime.md).
+
 Requirements:
 
 - JDK 21

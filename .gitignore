@@ -23,3 +23,6 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Python deployment verification output
+__pycache__/
