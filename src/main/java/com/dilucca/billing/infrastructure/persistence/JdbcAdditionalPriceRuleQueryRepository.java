@@ -7,10 +7,16 @@ import com.dilucca.billing.api.pricing.PriceRulePage;
 import java.util.Objects;
 import java.util.UUID;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.RowMapper;
 import org.springframework.stereotype.Repository;
 
 @Repository
 public class JdbcAdditionalPriceRuleQueryRepository implements AdditionalPriceRuleQueryService {
+    static final RowMapper<PriceRule> RULE_MAPPER = (row, index) -> new PriceRule(
+            row.getObject("rule_id", UUID.class), row.getString("rule_code"), row.getString("item_type"),
+            row.getBigDecimal("unit_price").toPlainString(), row.getBoolean("requires_approval"),
+            row.getTimestamp("valid_from").toInstant(), row.getTimestamp("created_at").toInstant(),
+            row.getTimestamp("updated_at").toInstant(), row.getInt("version"));
     private final JdbcTemplate jdbc;
 
     public JdbcAdditionalPriceRuleQueryRepository(JdbcTemplate jdbc) {
@@ -39,11 +45,7 @@ public class JdbcAdditionalPriceRuleQueryRepository implements AdditionalPriceRu
                        valid_from, created_at, updated_at, version
                 FROM billing.additional_price_rules
                 ORDER BY created_at ASC, rule_id ASC LIMIT ? OFFSET ?
-                """, (row, index) -> new PriceRule(row.getObject("rule_id", UUID.class),
-                row.getString("rule_code"), row.getString("item_type"),
-                row.getBigDecimal("unit_price").toPlainString(), row.getBoolean("requires_approval"),
-                row.getTimestamp("valid_from").toInstant(), row.getTimestamp("created_at").toInstant(),
-                row.getTimestamp("updated_at").toInstant(), row.getInt("version")), limit, offset);
+                """, RULE_MAPPER, limit, offset);
         return new PriceRulePage(rules, new PaginatedMeta(page, limit, total, (int) pages));
     }
 }
