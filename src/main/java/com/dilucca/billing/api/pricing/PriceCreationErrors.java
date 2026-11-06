@@ -10,7 +10,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.server.ResponseStatusException;
 
-@RestControllerAdvice(assignableTypes = ProcedurePriceController.class)
+@RestControllerAdvice(assignableTypes = {ProcedurePriceController.class, AdditionalPriceRuleController.class})
 public class PriceCreationErrors {
     @ExceptionHandler(PriceCreationConflict.class)
     ResponseEntity<?> conflict(PriceCreationConflict error) {
