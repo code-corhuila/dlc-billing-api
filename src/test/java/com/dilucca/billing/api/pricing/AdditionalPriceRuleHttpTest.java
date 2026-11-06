@@ -79,6 +79,8 @@ class AdditionalPriceRuleHttpTest {
                 BODY.replace("false", "true"), BODY.replace("false", "\"false\""),
                 BODY.replace("ADDITIONAL_MATERIAL", "UNSUPPORTED"),
                 BODY.replace("\"code\":\"MATERIAL\"", "\"code\":\" \""),
+                BODY.replace("\"code\":\"MATERIAL\"", "\"code\":\"" + "X".repeat(81) + "\""),
+                BODY.replace("\"requiresApproval\":false,", ""),
                 BODY.replace("1000.00", "0.00"), BODY.replace("1000.00", "1.001"),
                 BODY.replace("\"1000.00\"", "1000.00"), BODY.replace("1000.00", "1000000000000.00"),
                 BODY.replace("2026-01-01T00:00:00Z", "2026-01-01"),
@@ -92,6 +94,8 @@ class AdditionalPriceRuleHttpTest {
                     .header("Idempotency-Key", key).contentType("application/json").content(BODY))
                     .andExpect(status().isBadRequest());
         }
+        mvc.perform(post(PATH).header("Authorization", "Bearer ADMINISTRATOR")
+                .contentType("application/json").content(BODY)).andExpect(status().isBadRequest());
         verifyNoInteractions(jdbc);
     }
 

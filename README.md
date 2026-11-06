@@ -47,8 +47,9 @@ The local implementation includes:
 - `GET /api/v1/procedure-prices` for Administrator, Dentist, and Secretary/Assistant.
 - `GET /api/v1/additional-price-rules` for Administrator and Secretary/Assistant, with pagination, exact unit prices, and stable ordering.
 - `POST /api/v1/procedure-prices` for Administrator, with strict JSON validation and a UUID `Idempotency-Key`.
+- `POST /api/v1/additional-price-rules` for Administrator, restricted to the four contract item types and `requiresApproval: false`.
 - Atomic price version creation, closure of previous validity, and preservation of historical prices.
-- Persistent idempotency scoped by actor, operation, and procedure; identical retries return the stored HTTP 201 response and Location, while changed content returns HTTP 409.
+- Persistent idempotency scoped by actor, operation, and catalog source; identical retries return the stored HTTP 201 response and Location, while changed content returns HTTP 409.
 - At least seven days of idempotency retention, committed in the same transaction as the price write.
 - RS256 JWT signature verification through JWKS, issuer/audience validation, required claims, and role authorization.
 - HTTP, cryptographic, PostgreSQL concurrency, and rollback tests.
@@ -59,7 +60,7 @@ JWT verification requires the actual IAM deployment values for `BILLING_IAM_JWKS
 
 The POST requires `billing.idempotency_records` from the `billing-005-create-idempotency-records` changeset in `dlc-billing-db`. That migration remains on its local development branch and must be reviewed and promoted before deploying the POST to another environment.
 
-Additional rule listing requires `billing.additional_price_rules` from `billing-006-create-additional-price-rules`, currently on the local `feat/billing-additional-price-rules-schema` database branch. The table enforces positive COP amounts, allowed item types, unique versions, and nonoverlapping active validity intervals. The additional-rule POST is not implemented yet.
+Additional rule operations require `billing.additional_price_rules` from `billing-006-create-additional-price-rules`, currently on the local `feat/billing-additional-price-rules-schema` database branch. The table enforces positive COP amounts, allowed item types, unique versions, and nonoverlapping active validity intervals. Creating a rule version closes the previous validity without rewriting its historical amount or approval metadata. The rule and its idempotent HTTP response are committed atomically.
 
 ### Pending Integration
 
