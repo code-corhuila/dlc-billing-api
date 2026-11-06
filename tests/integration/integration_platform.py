@@ -88,6 +88,7 @@ class Platform:
         self.pg=self.container("dlc-postgres","postgres:16-alpine",
             {"POSTGRES_DB":"di_lucca","POSTGRES_USER":"postgres","POSTGRES_PASSWORD":self.secrets[0]})
         self.wait(lambda: "accepting connections" in self.run("docker","exec",self.pg,"pg_isready","-h","127.0.0.1","-U","postgres"),"PostgreSQL")
+        self.before_bootstrap()
         self.sql((iam_db/"deploy/bootstrap.sql").read_text())
         self.sql((billing_db/"deploy/bootstrap.sql").read_text())
         self.sql("CREATE EXTENSION IF NOT EXISTS pgcrypto;")
@@ -122,18 +123,24 @@ class Platform:
                ("IAM_REGISTRATION_PROOF_KEY_BASE64","IAM_LOGIN_IP_DIGEST_KEY_BASE64","IAM_CSRF_KEY_BASE64",
                 "IAM_IDENTITY_EMAIL_LIMIT_KEY_BASE64")}))
         self.wait_iam()
+        self.before_billing()
+        dependency_env,dependency_mounts=self.billing_dependencies()
         owner=self.container("billing-service",os.environ["BILLING_RUNTIME_IMAGE"],dict(
             SPRING_DATASOURCE_URL="jdbc:postgresql://dlc-postgres:5432/di_lucca",
             SPRING_DATASOURCE_USERNAME="billing_runtime",SPRING_DATASOURCE_PASSWORD=self.secrets[4],
             BILLING_IAM_JWKS_URI="http://auth-service:8080/api/v1/auth/jwks",
             IAM_JWT_ISSUER="integration-staff-issuer",IAM_JWT_AUDIENCE="integration-staff",
             BILLING_IAM_ORIGIN="http://auth-service:8080",BILLING_IAM_LOCAL_DEVELOPMENT="true",
-            BILLING_IAM_SERVICE_TOKEN_FILE="/run/billing-iam/service-token"),
-            mounts=[(self.directory/"billing","/run/billing-iam")])
+            BILLING_IAM_SERVICE_TOKEN_FILE="/run/billing-iam/service-token",**dependency_env),
+            mounts=[(self.directory/"billing","/run/billing-iam"),*dependency_mounts])
         self.wait(lambda: "Started BillingApplication" in self.run("docker","logs",owner),"Billing")
         self.gateway=self.container("api-gateway",os.environ["GATEWAY_RUNTIME_IMAGE"],publish=True)
         self.base="http://"+self.run("docker","port",self.gateway,"8080/tcp").strip()
         self.wait(lambda:self.request("GET","/health")[0]==200,"Gateway")
+
+    def before_bootstrap(self): pass
+    def before_billing(self): pass
+    def billing_dependencies(self): return {},[]
 
     def seed(self):
         self.users={role:role.lower()+"@integration.invalid" for role in
