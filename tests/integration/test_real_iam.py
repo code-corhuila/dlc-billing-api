@@ -1,6 +1,7 @@
 """Opt-in local proof with real owner services and disposable test identities."""
 import json
 import unittest
+from concurrent.futures import ThreadPoolExecutor
 from uuid import uuid4
 from integration_platform import Platform
 
@@ -19,7 +20,10 @@ class RealIamBillingTest(unittest.TestCase):
         body = dict(procedureCode="E2E-"+uuid4().hex[:12], name="Integration procedure",
                     basePrice="12345.67", validFrom="2026-11-06T00:00:00Z")
         path = "/api/v1/procedure-prices"
-        status, headers, created = p.request("POST", path, body, token, key)
+        with ThreadPoolExecutor(max_workers=2) as workers:
+            results=list(workers.map(lambda _:p.request("POST",path,body,token,key),range(2)))
+        status, headers, created = results[0]
+        self.assertEqual((201,created),(results[1][0],results[1][2]))
         self.assertEqual(201, status)
         self.assertTrue(headers["Location"].startswith(path+"/"))
         self.assertEqual("12345.67", json.loads(created)["basePrice"])
@@ -28,6 +32,13 @@ class RealIamBillingTest(unittest.TestCase):
         self.assertEqual(created, again)
         self.assertEqual(headers["Location"], again_headers["Location"])
         self.assertEqual(409, p.request("POST", path, dict(body, basePrice="12345.68"), token, key)[0])
+        status, _, version = p.request("POST",path,dict(body,basePrice="12346.00",
+            validFrom="2026-11-07T00:00:00Z"),token,str(uuid4()))
+        self.assertEqual(201,status)
+        self.assertEqual(2,json.loads(version)["version"])
+        p.sql("DO $$ BEGIN IF (SELECT count(*) FROM billing.procedure_prices WHERE procedure_code='"
+              +body["procedureCode"]+"' AND version=1 AND valid_to='2026-11-07T00:00:00Z') <> 1 THEN "
+              "RAISE EXCEPTION 'Previous validity was not closed'; END IF; END $$;")
         self.assertEqual(200, p.request("GET", path, token=token)[0])
         dentist, _ = p.login("DENTIST")
         self.assertEqual(403, p.request("POST", path, body, dentist, str(uuid4()))[0])
