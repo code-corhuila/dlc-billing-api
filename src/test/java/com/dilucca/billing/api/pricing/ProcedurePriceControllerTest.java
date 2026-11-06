@@ -29,7 +29,7 @@ class ProcedurePriceControllerTest {
                         new PaginatedMeta(1, 20, 0, 0)));
 
         MockMvc mvc = MockMvcBuilders.standaloneSetup(
-                new ProcedurePriceController(queryService))
+                new ProcedurePriceController(queryService, mock(ProcedurePriceCreateService.class)))
                 .build();
 
         mvc.perform(get(PRICES_PATH)
@@ -52,7 +52,7 @@ class ProcedurePriceControllerTest {
                 mock(ProcedurePriceQueryService.class);
 
         MockMvc mvc = MockMvcBuilders.standaloneSetup(
-                new ProcedurePriceController(queryService))
+                new ProcedurePriceController(queryService, mock(ProcedurePriceCreateService.class)))
                 .build();
 
         String[][] invalidCases = {
@@ -79,7 +79,7 @@ class ProcedurePriceControllerTest {
                 mock(ProcedurePriceQueryService.class);
 
         MockMvc mvc = MockMvcBuilders.standaloneSetup(
-                new ProcedurePriceController(queryService))
+                new ProcedurePriceController(queryService, mock(ProcedurePriceCreateService.class)))
                 .build();
 
         mvc.perform(get(PRICES_PATH)
@@ -96,7 +96,7 @@ class ProcedurePriceControllerTest {
                 mock(ProcedurePriceQueryService.class);
 
         MockMvc mvc = MockMvcBuilders.standaloneSetup(
-                new ProcedurePriceController(queryService))
+                new ProcedurePriceController(queryService, mock(ProcedurePriceCreateService.class)))
                 .build();
 
         mvc.perform(get("/procedure-prices"))

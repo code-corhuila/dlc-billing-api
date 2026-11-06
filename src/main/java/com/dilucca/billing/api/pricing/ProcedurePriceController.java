@@ -5,6 +5,10 @@ import java.util.UUID;
 import java.util.Map;
 
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.http.MediaType;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -19,10 +23,12 @@ import org.springframework.web.server.ResponseStatusException;
 public class ProcedurePriceController {
 
     private final ProcedurePriceQueryService queryService;
+    private final ProcedurePriceCreateService createService;
 
     public ProcedurePriceController(
-            ProcedurePriceQueryService queryService) {
+            ProcedurePriceQueryService queryService, ProcedurePriceCreateService createService) {
         this.queryService = Objects.requireNonNull(queryService);
+        this.createService = Objects.requireNonNull(createService);
     }
 
     @GetMapping
@@ -41,15 +47,21 @@ public class ProcedurePriceController {
     }
 
     @PostMapping
-    public void create(
+    public ResponseEntity<String> create(
             @RequestHeader("Idempotency-Key") String idempotencyKey,
-            @RequestBody Map<String, Object> body) {
+            @RequestBody Map<String, Object> body,
+            @AuthenticationPrincipal Jwt jwt) {
 
-        CreatePriceRequest.key(idempotencyKey);
-        CreatePriceRequest.parse(body);
-
-        throw new ResponseStatusException(
-                HttpStatus.SERVICE_UNAVAILABLE,
-                "Price creation is not available");
+        UUID key = CreatePriceRequest.key(idempotencyKey);
+        var request = CreatePriceRequest.parse(body);
+        UUID actor;
+        try {
+            actor = CreatePriceRequest.key(jwt == null ? null : jwt.getSubject());
+        } catch (ResponseStatusException invalidIdentity) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid staff identity");
+        }
+        var result = createService.create(key, actor, request);
+        return ResponseEntity.status(result.status()).header("Location", result.location())
+                .contentType(MediaType.APPLICATION_JSON).body(result.body());
     }
 }

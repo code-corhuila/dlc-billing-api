@@ -29,7 +29,7 @@ public class JdbcProcedurePriceQueryRepository
             LIMIT ? OFFSET ?
             """;
 
-    private static final RowMapper<Price> PRICE_MAPPER =
+    static final RowMapper<Price> PRICE_MAPPER =
             (rs, rowNum) -> {
                 Timestamp validFrom = rs.getTimestamp("valid_from");
                 Timestamp validTo = rs.getTimestamp("valid_to");
