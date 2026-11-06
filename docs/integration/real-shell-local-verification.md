@@ -39,3 +39,16 @@ because it could not determine the active URL confidently enough to enforce its
 safety policy. No security warning was bypassed and no browser acceptance is
 claimed. Secure-cookie handling, UI creation/reload/logout and stage readiness
 remain pending; test-only trust and identities retain the owner report's limits.
+
+## Catalog writes and session renewal follow-up
+
+Both shell scenarios passed in 150.719 seconds on 2026-11-06. The suite now
+also obtains a real CSRF proof and rotates the IAM refresh
+cookie before writing both catalogs. It verifies 201/Location, exact money,
+400 for numeric money, identical replay, changed-payload 409 and persisted
+GET results through the shell. Logout with the rotated cookie denies both
+saved POST replays and the original access token. Refresh preserves Secure,
+HttpOnly and SameSite=Strict attributes; cookies/proofs/tokens are never printed.
+This is additional HTTP evidence, not browser cookie enforcement. No runtime
+behavior or official contract was changed by these regression tests.
+See [the delivery gates](billing-delivery-gates.md) for the remaining owner work.
