@@ -31,7 +31,8 @@ class BillableItemControllerTest {
     @Test
     void rejectsInvalidPaginationBeforeReadingPersistence() throws Exception {
         for (String query : List.of("page=0", "limit=101", "limit=0", "page=2147483647", "page=no")) {
-            mvc.perform(get("/api/v1/billable-items?"+query)).andExpect(status().isBadRequest());
+            mvc.perform(get("/api/v1/billable-items?"+query)).andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.error").value("VALIDATION_ERROR"));
         }
         verifyNoInteractions(jdbc);
     }
@@ -41,7 +42,8 @@ class BillableItemControllerTest {
         for (String name : List.of("patientId", "procedureId")) {
             for (String value : List.of("not-a-uuid", "1-1-1-1-1", "", "' OR TRUE --")) {
                 mvc.perform(get("/api/v1/billable-items").param(name, value))
-                        .andExpect(status().isBadRequest());
+                        .andExpect(status().isBadRequest())
+                        .andExpect(jsonPath("$.error").value("VALIDATION_ERROR"));
             }
         }
         verifyNoInteractions(jdbc);
