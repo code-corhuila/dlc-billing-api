@@ -24,7 +24,7 @@ class ComposeTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             config = Path(directory) / "runtime.env"
             config.write_text("", encoding="utf-8")
-            selected = dict(BILLING_STAGE="develop", BILLING_ENV_FILE=str(config),
+            selected = dict(BILLING_STAGE="develop", BILLING_ENV_FILE=str(config), BILLING_IAM_SECRETS_DIR=directory,
                             BILLING_PLATFORM_NETWORK="billing-deployment-test-network")
             for missing in selected:
                 with self.subTest(missing=missing):
@@ -38,7 +38,7 @@ class ComposeTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             config = Path(directory) / "runtime.env"
             config.write_text("IAM_JWT_ISSUER=compose-test-only\n", encoding="utf-8")
-            env = dict(os.environ, BILLING_STAGE="develop", BILLING_ENV_FILE=str(config),
+            env = dict(os.environ, BILLING_STAGE="develop", BILLING_ENV_FILE=str(config), BILLING_IAM_SECRETS_DIR=directory,
                        BILLING_PLATFORM_NETWORK="billing-deployment-test-network")
             result = docker("compose", "-f", "deploy/compose.yml", "config", "--format", "json", env=env)
             self.assertEqual(0, result.returncode, result.stderr)
@@ -46,6 +46,8 @@ class ComposeTest(unittest.TestCase):
             self.assertEqual({"billing-service"}, set(manifest["services"]))
             service = manifest["services"]["billing-service"]
             self.assertFalse(service.get("ports"))
+            self.assertTrue(service["volumes"][0]["read_only"])
+            self.assertEqual("/run/billing-iam", service["volumes"][0]["target"])
             self.assertEqual(["8080"], service["expose"])
             self.assertEqual({"platform"}, set(service["networks"]))
             self.assertTrue(manifest["networks"]["platform"]["external"])
@@ -67,6 +69,8 @@ class RuntimeTest(unittest.TestCase):
             SPRING_DATASOURCE_USERNAME=cls.environment["BILLING_TEST_DB_USER"],
             SPRING_DATASOURCE_PASSWORD=cls.environment["BILLING_TEST_DB_PASSWORD"],
             BILLING_IAM_JWKS_URI="http://auth-service:8080/api/v1/auth/jwks",
+            BILLING_IAM_ORIGIN="http://auth-service:8080",
+            BILLING_IAM_SERVICE_TOKEN_FILE="/run/billing-iam/service-token", BILLING_IAM_LOCAL_DEVELOPMENT="true",
             IAM_JWT_ISSUER="container-verification-only", IAM_JWT_AUDIENCE="container-verification-only")
         cls.http_network = "billing-runtime-http-test-" + uuid4().hex
         result = docker("network", "create", cls.http_network)
@@ -80,7 +84,8 @@ class RuntimeTest(unittest.TestCase):
                 "-p", "127.0.0.1::8080"]
         keys = ["SPRING_DATASOURCE_URL", "SPRING_DATASOURCE_USERNAME", "SPRING_DATASOURCE_PASSWORD"]
         if configure_iam:
-            keys += ["BILLING_IAM_JWKS_URI", "IAM_JWT_ISSUER", "IAM_JWT_AUDIENCE"]
+            keys += ["BILLING_IAM_JWKS_URI", "IAM_JWT_ISSUER", "IAM_JWT_AUDIENCE", "BILLING_IAM_ORIGIN",
+                     "BILLING_IAM_SERVICE_TOKEN_FILE", "BILLING_IAM_LOCAL_DEVELOPMENT"]
         for key in keys:
             args.extend(["-e", key])
         result = docker(*args, IMAGE, env=self.environment)
@@ -139,4 +144,4 @@ class RuntimeTest(unittest.TestCase):
         self.assertEqual(0, exit_code.returncode)
         self.assertNotEqual("0", exit_code.stdout.strip())
         logs = docker("logs", name)
-        self.assertIn("BILLING_IAM_JWKS_URI", logs.stdout + logs.stderr)
+        self.assertIn("BILLING_IAM_", logs.stdout + logs.stderr)
