@@ -10,6 +10,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import tools.jackson.databind.json.JsonMapper;
 
 /** All financial state, event intent, audit and replay commit together; no broker call. */
+@org.springframework.stereotype.Service
 public final class JdbcInvoiceIssuance {
     private final JdbcTemplate jdbc;
     private final JsonMapper mapper;
