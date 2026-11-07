@@ -18,6 +18,7 @@ class EncounterWriteCoordinatorTest {
         runtime=new JdbcTemplate(new DriverManagerDataSource(System.getenv("BILLING_TEST_JDBC_URL"),"billing_runtime",System.getenv("BILLING_TEST_RUNTIME_DB_PASSWORD")));
     }
     @AfterEach void clean() {
+        owner.update("DELETE FROM billing.idempotency_records WHERE actor_id='service:clinical-test' AND resource_key LIKE ?","%"+record+"%");
         owner.update("DELETE FROM billing.manual_charge_admissions WHERE clinical_record_id=?",record);
         owner.update("DELETE FROM billing.encounter_freezes WHERE clinical_record_id=?",record);
         owner.update("DELETE FROM billing.encounter_write_gates WHERE clinical_record_id=?",record);
@@ -58,5 +59,14 @@ class EncounterWriteCoordinatorTest {
             var result=freeze.get(10,TimeUnit.SECONDS);
             assertEquals(admitted ? 1 : 0,result.pendingWrites()); assertEquals(!admitted,result.settled());
         }
+    }
+    @Test void commandKeyBindsPayloadButRepeatsReadCurrentSettlement() {
+        UUID key=UUID.randomUUID(),write=UUID.randomUUID();
+        service().admit(record,consultation,write,UUID.randomUUID());
+        assertFalse(service().freezeCommand(key,"clinical-test",record,consultation,operation).settled());
+        owner.update("UPDATE billing.manual_charge_admissions SET state='ABORTED',resolved_at=now() WHERE operation_id=?",write);
+        assertTrue(service().freezeCommand(key,"clinical-test",record,consultation,operation).settled());
+        assertThrows(com.dilucca.billing.api.pricing.PriceCreationConflict.class,
+                () -> service().freezeCommand(key,"clinical-test",record,consultation,UUID.randomUUID()));
     }
 }
