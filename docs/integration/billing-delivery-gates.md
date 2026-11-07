@@ -1,5 +1,8 @@
 # Billing delivery gates
 
+> Historical snapshot. For the current status, including implemented payments,
+> PDF and relay, see the [2026-11-07 API contract audit](api-contract-audit-2026-11-07.md).
+
 Repository inspection on 2026-11-06. A working catalog integration does not
 establish delivery of the full Billing service. Official requirements remain in
 `dlc-docs/07-api/contracts/openapi/billing-service.yaml` and the Billing owner
