@@ -15,6 +15,26 @@ public class JdbcEncounterWriteCoordinator {
     private final JdbcTemplate jdbc;
     private final JsonMapper mapper;
     public JdbcEncounterWriteCoordinator(JdbcTemplate jdbc,JsonMapper mapper) { this.jdbc=jdbc; this.mapper=mapper; }
+    public Settlement freezeCommand(UUID key,String service,UUID record,UUID consultation,UUID operation) {
+        return command(key,service,record,consultation,operation,false);
+    }
+    public Settlement releaseCommand(UUID key,String service,UUID record,UUID consultation,UUID operation) {
+        return command(key,service,record,consultation,operation,true);
+    }
+    private Settlement command(UUID key,String service,UUID record,UUID consultation,UUID operation,boolean release) {
+        if(service==null || service.isBlank() || service.length()>200) throw new IllegalArgumentException();
+        String path="/internal/v1/encounter-accounts/"+record+"/"+consultation+"/manual-charges/freezes";
+        if(release) path+="/"+operation+"/releases";
+        String resource=path;
+        return transaction(() -> {
+            new JdbcIdempotentCreation(jdbc,mapper).execute(key,"service:"+service,"BillingEncounter"+(release ? "Release" : "Freeze"),resource,List.of(operation),now -> {
+                if(release) release(record,consultation,operation); else freeze(record,consultation,operation);
+                // Persist the request binding, not a stale pendingWrites response.
+                return new com.dilucca.billing.api.pricing.CreatedResource(200,resource,mapper.writeValueAsString(Map.of("operationId",operation)));
+            });
+            return release ? release(record,consultation,operation) : freeze(record,consultation,operation);
+        });
+    }
     private <T> T transaction(Supplier<T> work) {
         return new TransactionTemplate(new DataSourceTransactionManager(Objects.requireNonNull(jdbc.getDataSource())))
                 .execute(status -> work.get());
