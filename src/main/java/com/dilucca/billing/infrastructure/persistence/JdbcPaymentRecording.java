@@ -22,13 +22,15 @@ public class JdbcPaymentRecording {
         try {
             return new JdbcIdempotentCreation(jdbc,mapper).execute(key,actor,"BillingRecordpayment",
                     "/api/v1/invoices/"+invoice+"/payments",List.of(exact,method,version),now -> {
-                var headers=jdbc.query("SELECT patient_id,status,version,balance FROM billing.invoices WHERE invoice_id=? FOR UPDATE",
-                        (rs,row) -> new Header(rs.getObject(1,UUID.class),rs.getString(2),rs.getInt(3),rs.getBigDecimal(4)),invoice);
+                var headers=jdbc.query("SELECT patient_id,status,version,balance,total FROM billing.invoices WHERE invoice_id=? FOR UPDATE",
+                        (rs,row) -> new Header(rs.getObject(1,UUID.class),rs.getString(2),rs.getInt(3),rs.getBigDecimal(4),rs.getBigDecimal(5)),invoice);
                 if (headers.isEmpty()) throw new Missing();
                 var header=headers.getFirst();
                 if (header.version()!=version) throw new Conflict("STALE_VERSION");
                 if (!Set.of("ISSUED","PARTIALLY_PAID").contains(header.status())) throw new Conflict("INVOICE_NOT_PAYABLE");
                 if (amount.compareTo(header.balance())>0) throw new Conflict("PAYMENT_EXCEEDS_BALANCE");
+                if (amount.compareTo(com.dilucca.billing.domain.InitialPaymentMinimum.forBalance(header.total(),header.balance()))<0)
+                    throw new Conflict("INITIAL_PAYMENT_BELOW_MINIMUM");
                 if (!Boolean.TRUE.equals(jdbc.queryForObject("SELECT EXISTS(SELECT FROM billing.payment_methods WHERE method=? AND active)",Boolean.class,method)))
                     throw new IllegalArgumentException();
                 UUID id=UUID.randomUUID();
@@ -59,7 +61,7 @@ public class JdbcPaymentRecording {
                 id,invoice,type,Timestamp.from(now),mapper.writeValueAsString(body));
         return id;
     }
-    private record Header(UUID patient,String status,int version,BigDecimal balance) { }
+    private record Header(UUID patient,String status,int version,BigDecimal balance,BigDecimal total) { }
     public static class Missing extends RuntimeException { }
     public static class Conflict extends RuntimeException {
         private final String code;
