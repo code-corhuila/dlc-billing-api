@@ -17,6 +17,7 @@ class ManualChargeInputTest {
         assertEquals("1.2345",input.quantity().toPlainString()); assertEquals("12.34",input.unitPrice().toPlainString());
         assertEquals(" Exact manual concept ",input.concept()); assertEquals(" Owner reason ",input.justification());
         assertEquals("15.23",input.lineTotal().toPlainString());
+        assertEquals("1.01",ManualChargeInput.parse(valid().replace("1.2345","1.005").replace("12.34","1.00")).lineTotal().toPlainString());
     }
     @Test void rejectsAmbiguousJsonAndUntrustedActorOrTimeFields() {
         String good=valid();
