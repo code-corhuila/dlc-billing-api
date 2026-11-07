@@ -55,6 +55,8 @@ public class BillingSecurityConfiguration {
                         .hasAnyRole("ADMINISTRATOR", "SECRETARY_ASSISTANT")
                         .requestMatchers(HttpMethod.POST, "/api/v1/invoices/*/payments")
                         .hasAnyRole("ADMINISTRATOR", "SECRETARY_ASSISTANT")
+                        .requestMatchers(HttpMethod.POST, "/api/v1/manual-charges")
+                        .hasAnyRole("ADMINISTRATOR", "DENTIST")
                         .anyRequest()
                         .denyAll())
                 .addFilterAfter(new IamSessionEligibilityFilter(iam), BearerTokenAuthenticationFilter.class)
