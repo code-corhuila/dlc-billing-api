@@ -70,5 +70,7 @@ class PaymentHttpTest {
         mvc.perform(request(body)).andExpect(status().isNotFound());
         doThrow(new JdbcPaymentRecording.Conflict("STALE_VERSION")).when(recording).record(any(),any(),any(),any(),anyString(),anyLong(),any());
         mvc.perform(request(body)).andExpect(status().isConflict()).andExpect(jsonPath("$.error").value("STALE_VERSION"));
+        doThrow(new JdbcPaymentRecording.Conflict("INITIAL_PAYMENT_BELOW_MINIMUM")).when(recording).record(any(),any(),any(),any(),anyString(),anyLong(),any());
+        mvc.perform(request(body)).andExpect(status().isConflict()).andExpect(jsonPath("$.error").value("INITIAL_PAYMENT_BELOW_MINIMUM"));
     }
 }
