@@ -15,4 +15,10 @@ RED: three HTTP tests failed because the route was denied with 403. GREEN:
 eleven tests, zero failures/errors/skips, including manual HTTP, input and invoice
 draft HTTP regression (`target/manual-charge-http-green.log`). These boundary
 tests isolate IAM/recording; real owner manual acceptance remains a later gate.
-Protected manual GET and price-correction POST are still separate increments.
+Protected GET `/api/v1/manual-charges/{id}` is now implemented in the next local
+increment. Administrator may read it; the source Dentist must also retain a live
+assignment. Scope is applied in the owner query, and missing/out-of-scope records
+share 404. The DTO includes protected justification only on this protected route
+and uses no-store caching. Fourteen PostgreSQL/HTTP/input tests passed with zero
+failures/errors/skips (`target/manual-charge-read-green.log`). Price-correction
+POST remains separate; real owner manual acceptance is still pending.
