@@ -80,4 +80,16 @@ class ClinicalChargeReconciliationTest {
         }
         assertEquals(1,owner.queryForObject("SELECT count(*) FROM billing.procedure_charge_receipts WHERE procedure_id=?",Integer.class,id("81",3)));
     }
+    @Test void outboxFailureRollsBackSnapshotsAndFinancialClosure() throws Exception {
+        prices(); freeze(); project("procedure"); project("declaration");
+        String trigger="fail_clinical_"+id("82",2).toString().replace("-","");
+        owner.execute("CREATE FUNCTION billing."+trigger+"() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.event_type='BillableItemsCreated' AND NEW.event_body->'payload'->>'patientId'='"+id("81",4)+"' THEN RAISE EXCEPTION 'Synthetic outbox failure'; END IF; RETURN NEW; END $$");
+        owner.execute("CREATE TRIGGER "+trigger+" BEFORE INSERT ON billing.outbox_events FOR EACH ROW EXECUTE FUNCTION billing."+trigger+"()");
+        try {
+            assertThrows(org.springframework.dao.DataAccessException.class,this::reconcile);
+            assertEquals(0,owner.queryForObject("SELECT count(*) FROM billing.billable_items WHERE procedure_id=?",Integer.class,id("81",3)));
+            assertEquals(0,owner.queryForObject("SELECT count(*) FROM billing.encounter_accounts WHERE clinical_record_id=?",Integer.class,id("82",2)));
+        } finally { owner.execute("DROP TRIGGER "+trigger+" ON billing.outbox_events"); owner.execute("DROP FUNCTION billing."+trigger+"()"); }
+        assertTrue(reconcile());
+    }
 }
