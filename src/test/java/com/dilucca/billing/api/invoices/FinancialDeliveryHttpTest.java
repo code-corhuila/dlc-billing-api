@@ -3,8 +3,10 @@ package com.dilucca.billing.api.invoices;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 import com.dilucca.billing.infrastructure.persistence.JdbcInvoiceEventQuery;
+import com.dilucca.billing.infrastructure.persistence.JdbcEncounterWriteCoordinator;
 import com.dilucca.billing.infrastructure.security.IamSessionValidationClient;
 import com.nimbusds.jose.*;
 import com.nimbusds.jose.crypto.RSASSASigner;
@@ -35,6 +37,7 @@ class FinancialDeliveryHttpTest {
     @MockitoBean JwtDecoder staff;
     @MockitoBean IamSessionValidationClient iam;
     @MockitoBean JdbcInvoiceEventQuery events;
+    @MockitoBean JdbcEncounterWriteCoordinator coordination;
     private final UUID invoice=UUID.randomUUID(),event=UUID.randomUUID();
     private static KeyPair keys() {
         try { var g=KeyPairGenerator.getInstance("RSA"); g.initialize(2048); return g.generateKeyPair(); }
@@ -51,6 +54,7 @@ class FinancialDeliveryHttpTest {
         p.add("BILLING_SERVICE_JWT_ISSUER",() -> "service-test");
         p.add("BILLING_SERVICE_JWT_AUDIENCE",() -> "billing-private");
         p.add("BILLING_WORKER_SERVICE_SUBJECT",() -> "test-worker");
+        p.add("BILLING_CLINICAL_SERVICE_SUBJECT",() -> "test-clinical");
     }
     private String token(String subject,String audience,String scope,KeyPair key) throws Exception {
         var now=Instant.now(); var claims=new JWTClaimsSet.Builder().issuer("service-test").subject(subject).audience(audience)
@@ -78,6 +82,28 @@ class FinancialDeliveryHttpTest {
                 .andExpect(status().isOk()).andExpect(content().contentType("application/pdf"));
         when(events.find(any(),any())).thenReturn(Optional.empty());
         mvc.perform(get(path("pdf")).header("Authorization","Bearer "+token("test-worker","billing-private","billing:invoice-pdf:read",keys))).andExpect(status().isNotFound());
+        verifyNoInteractions(iam,staff);
+    }
+    @Test void onlyClinicalCanFreezeAndReleaseWithStrictCommands() throws Exception {
+        UUID operation=UUID.randomUUID(),key=UUID.randomUUID();
+        String path="/internal/v1/encounter-accounts/"+invoice+"/"+event+"/manual-charges/freezes";
+        String token=token("test-clinical","billing-private","billing:encounter-freeze:write",keys);
+        var result=new JdbcEncounterWriteCoordinator.Settlement(operation,"FROZEN",invoice,event,true,0,List.of(),2);
+        when(coordination.freezeCommand(any(),anyString(),any(),any(),any())).thenReturn(result);
+        when(coordination.releaseCommand(any(),anyString(),any(),any(),any())).thenReturn(result);
+        mvc.perform(post(path).header("Authorization","Bearer "+token).header("Idempotency-Key",key)
+                .contentType("application/json").content("{\"operationId\":\""+operation+"\"}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.settled").value(true)).andExpect(jsonPath("$.chargeIds").isEmpty());
+        mvc.perform(post(path).header("Authorization","Bearer "+token).header("Idempotency-Key",key)
+                .contentType("application/json").content("{\"operationId\":\""+operation+"\",\"actor\":\"fake\"}"))
+                .andExpect(status().isBadRequest());
+        mvc.perform(post(path).header("Authorization","Bearer "+token).header("Idempotency-Key","invalid")
+                .contentType("application/json").content("{\"operationId\":\""+operation+"\"}"))
+                .andExpect(status().isBadRequest());
+        mvc.perform(post(path+"/"+operation+"/releases").header("Authorization","Bearer "+token).header("Idempotency-Key",key))
+                .andExpect(status().isOk());
+        mvc.perform(post(path).header("Authorization","Bearer "+token("test-worker","billing-private","billing:encounter-freeze:write",keys)))
+                .andExpect(status().isForbidden());
         verifyNoInteractions(iam,staff);
     }
 }
