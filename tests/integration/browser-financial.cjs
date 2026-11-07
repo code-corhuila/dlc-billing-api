@@ -56,7 +56,9 @@ assert.match(env.BILLING_BROWSER_INVOICE, /^[a-f0-9-]{36}$/);
     }
     await page.getByText('Pagada', { exact: false }).first().waitFor();
     await page.screenshot({ path: '/evidence/paid-invoice.png', fullPage: true });
+    const logout = page.waitForResponse(r => r.request().method() === 'POST' && r.url().endsWith('/auth/logout'));
     await page.getByRole('button', { name: 'Cerrar sesión', exact: true }).first().click();
+    assert.equal((await logout).status(), 204, 'IAM must confirm actual session revocation');
     await page.waitForURL(url => url.pathname === '/login'); steps.push('real-iam-logout');
     await fs.writeFile('/evidence/result.json', JSON.stringify({ passed: true, steps, failures }, null, 2));
     console.log('BROWSER_FINANCIAL:PASS');
