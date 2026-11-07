@@ -44,6 +44,9 @@ class TestServiceIdentity {
                 "integration-appointments","appointments:encounter-status:read");
         token(root.resolve("appointments/iam-token"),service,"appointments-integration",
                 "integration-iam","identity:validate");
+        Files.createDirectories(root.resolve("worker"));
+        token(root.resolve("worker/token"),service,"worker-integration","integration-billing",
+                "billing:invoice-pdf:read billing:notification-summary:read");
     }
 
     static void token(Path file,KeyPair key,String subject,String audience,String scope) throws Exception {
