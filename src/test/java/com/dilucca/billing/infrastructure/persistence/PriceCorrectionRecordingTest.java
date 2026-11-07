@@ -51,6 +51,13 @@ class PriceCorrectionRecordingTest {
         assertEquals(0,owner.queryForObject("SELECT count(*) FROM billing.price_corrections WHERE item_id=?",Integer.class,item));
         assertEquals(0,owner.queryForObject("SELECT count(*) FROM billing.idempotency_records WHERE actor_id=?",Integer.class,actor.toString()));
     }
+    @Test void neverReplacesAnAlreadyJustifiedLegacyManualCarePrice() {
+        owner.update("DELETE FROM billing.billable_items WHERE item_id=?",item);
+        owner.update("INSERT INTO billing.billable_items(item_id,encounter_account_id,patient_id,appointment_id,procedure_id,source_record_id,item_type,description,quantity,unit_price,approval_required,created_by,pricing_authority_role,justification) VALUES (?,?,?,?,?,?,'ADDITIONAL_MATERIAL','Synthetic legacy manual price',1,10.00,TRUE,?,'DENTIST','Validated care-time reason')",
+                item,account,patient,appointment,UUID.randomUUID(),UUID.randomUUID(),actor);
+        assertThrows(JdbcPriceCorrectionRecording.Conflict.class,()->service().record(UUID.randomUUID(),actor,item,input()));
+        assertEquals("10.00",owner.queryForObject("SELECT unit_price::text FROM billing.billable_items WHERE item_id=?",String.class,item));
+    }
     UUID allocate(String status) {
         UUID invoice=UUID.randomUUID();
         owner.update("INSERT INTO billing.invoices(invoice_id,patient_id,total,balance,created_by,status,invoice_number,issued_at) VALUES (?,?,5.00,5.00,?,?,?,?)",
