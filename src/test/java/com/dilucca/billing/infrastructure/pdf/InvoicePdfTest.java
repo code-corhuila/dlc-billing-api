@@ -32,6 +32,8 @@ class InvoicePdfTest {
             assertTrue(text.contains("0.01 COP")); // separately rounded line, never float arithmetic
             assertTrue(text.contains("Pagado: 0.15 COP"));
             assertTrue(text.contains("Saldo: 0.20 COP"));
+            var last=new PDFTextStripper(); last.setStartPage(doc.getNumberOfPages());
+            assertTrue(last.getText(doc).contains("Total: 0.35 COP"));
             assertFalse(text.contains("justification"));
             var evidence=Path.of("target/pdf-evidence"); Files.createDirectories(evidence);
             Files.write(evidence.resolve("synthetic-invoice.pdf"),bytes);
