@@ -1,0 +1,11 @@
+# Opt-in alongside existing service overlays; broker URI stays in a private directory.
+services:
+  billing-service:
+    environment:
+      BILLING_CLINICAL_CONSUMER_ENABLED: "true"
+      BILLING_RABBITMQ_URI_FILE: /run/billing-rabbitmq/uri
+    volumes:
+      - type: bind
+        source: ${BILLING_RABBITMQ_SECRETS_DIR:?Set the private broker credential directory}
+        target: /run/billing-rabbitmq
+        read_only: true
