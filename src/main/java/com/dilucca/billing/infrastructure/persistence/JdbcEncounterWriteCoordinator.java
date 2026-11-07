@@ -63,12 +63,14 @@ public class JdbcEncounterWriteCoordinator {
     }
     public Settlement release(UUID record,UUID consultation,UUID operation) {
         return transaction(() -> {
+            // Serialize the absence check with source projection's declaration insert.
+            jdbc.query("SELECT pg_advisory_xact_lock(31706,0)",(org.springframework.jdbc.core.ResultSetExtractor<Void>) rows -> null);
             Gate gate=gate(record,consultation,false);
             var previous=history(record,consultation,operation);
             if(previous==null) throw new Missing();
             if(previous.state().equals("RELEASED")) return mapper.readValue(previous.snapshot(),Settlement.class);
             if(previous.state().equals("COMMITTED") || !operation.equals(gate.operation()) || gate.version()==Integer.MAX_VALUE
-                    || Boolean.TRUE.equals(jdbc.queryForObject("SELECT EXISTS(SELECT FROM billing.encounter_accounts WHERE clinical_record_id=? AND consultation_id=? AND status<>'OPEN')",Boolean.class,record,consultation)))
+                    || Boolean.TRUE.equals(jdbc.queryForObject("SELECT EXISTS(SELECT FROM billing.encounter_accounts WHERE clinical_record_id=? AND consultation_id=? AND status<>'OPEN') OR EXISTS(SELECT FROM billing.clinical_declarations WHERE clinical_record_id=? AND consultation_id=?)",Boolean.class,record,consultation,record,consultation)))
                 throw new Conflict();
             jdbc.update("UPDATE billing.encounter_write_gates SET freeze_state='OPEN',freeze_operation_id=NULL,version=version+1,updated_at=? WHERE clinical_record_id=? AND consultation_id=?",
                     Timestamp.from(Instant.now()),record,consultation);
