@@ -131,17 +131,24 @@ class InvoiceIssuanceTransactionTest {
     }
 
     @Test void lateOutboxFailureRollsBackInvoiceHistoryAndReplay() {
+        lateFailure("outbox_events","NEW.aggregate_id='"+invoice+"'::uuid");
+    }
+    @Test void lateReplayFailureAlsoRollsBackStoredEventAndAudit() {
+        lateFailure("idempotency_records","NEW.actor_id='"+actor+"'");
+    }
+    private void lateFailure(String table,String condition) {
         String trigger="fail_issuance_"+invoice.toString().replace("-","");
         owner.execute("CREATE FUNCTION billing."+trigger+"() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN "
-                +"IF NEW.aggregate_id='"+invoice+"'::uuid THEN RAISE EXCEPTION 'test-only late failure'; END IF; RETURN NEW; END $$");
-        owner.execute("CREATE TRIGGER "+trigger+" BEFORE INSERT ON billing.outbox_events FOR EACH ROW EXECUTE FUNCTION billing."+trigger+"()");
+                +"IF "+condition+" THEN RAISE EXCEPTION 'test-only late failure'; END IF; RETURN NEW; END $$");
+        owner.execute("CREATE TRIGGER "+trigger+" BEFORE INSERT ON billing."+table+" FOR EACH ROW EXECUTE FUNCTION billing."+trigger+"()");
         try {
             assertThrows(org.springframework.dao.DataAccessException.class,() -> issue(UUID.randomUUID(),1));
             assertEquals("DRAFT",owner.queryForObject("SELECT status FROM billing.invoices WHERE invoice_id=?",String.class,invoice));
             assertEquals(0,owner.queryForObject("SELECT count(*) FROM billing.invoice_issuances WHERE invoice_id=?",Integer.class,invoice));
+            assertEquals(0,owner.queryForObject("SELECT count(*) FROM billing.outbox_events WHERE aggregate_id=?",Integer.class,invoice));
             assertEquals(0,owner.queryForObject("SELECT count(*) FROM billing.idempotency_records WHERE actor_id=?",Integer.class,actor.toString()));
         } finally {
-            owner.execute("DROP TRIGGER "+trigger+" ON billing.outbox_events");
+            owner.execute("DROP TRIGGER "+trigger+" ON billing."+table);
             owner.execute("DROP FUNCTION billing."+trigger+"()");
         }
     }
