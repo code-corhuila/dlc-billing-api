@@ -18,5 +18,7 @@ The operation requires DB changesets 014/015 and the prior draft/read migrations
 
 Four HTTP boundary tests passed with test doubles; the eight transaction tests
 use real PostgreSQL and the limited runtime role, including late rollback after
-both event/history writes. Broker publication, email and PDF are separate from
-the committed financial result. See the real owner report for runtime evidence.
+both event/history writes. The complete build passed 142 tests with zero
+failures/errors/skips and all five SQL suites. Broker publication, email and PDF
+are separate from the committed financial result. See
+[real owner verification](invoice-issuance-real-owners.md) for runtime evidence.
