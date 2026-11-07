@@ -16,4 +16,8 @@ call occurs there. Replays and competing reconciliation do not reprice/re-publis
 RED: missing reconciler. GREEN: nine PostgreSQL tests across reconciliation,
 source projection and inbox verify completedAt against a newer catalog version,
 reordered facts, pending dependencies, exact totals and concurrent publication.
-Additional closure-proof and late outbox rollback checks follow separately.
+The additional closure-proof and late outbox rollback checks passed: nine tests,
+zero failures/errors/skips in `target/clinical-close-proof-green.log`. Release
+serializes its declaration absence check with projection and rejects a committed
+Clinical declaration even before financial reconciliation creates the account.
+The runner also verifies the manual-charge runtime grants against PostgreSQL.
