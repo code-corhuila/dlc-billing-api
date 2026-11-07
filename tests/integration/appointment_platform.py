@@ -3,6 +3,7 @@ import os
 from pathlib import Path
 import secrets
 from shell_platform import ShellPlatform
+from integration_platform import ROOT
 
 
 class AppointmentPlatform(ShellPlatform):
@@ -41,6 +42,10 @@ class AppointmentPlatform(ShellPlatform):
                 (self.directory/"appointments","/run/service")])
         self.wait(lambda:"Started AppointmentsApplication" in self.run("docker","logs",self.appointments),
                   "Real Appointments")
+        ready=self.run("docker","run","--rm","--network",self.prefix,"--mount",
+                       f"type=bind,source={ROOT/'tests/integration'},target=/probe,readonly",
+                       "maven:3.9-eclipse-temurin-21","java","/probe/OwnerReadinessProbe.java")
+        if "APPOINTMENTS_READY" not in ready: raise AssertionError("Appointments owner not ready")
         self.sql("DO $$ BEGIN IF has_schema_privilege('billing_runtime','appointments','USAGE') "
                  "OR has_schema_privilege('appointments_runtime','billing','USAGE') "
                  "OR has_database_privilege('appointments_migrator',current_database(),'CREATE') "
