@@ -24,9 +24,15 @@
     <properties>
         <java.version>21</java.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <!-- GHSA-5m9f-rphj-c435: override the parent BOM's older TLS defaults. -->
+        <rabbit-amqp-client.version>5.33.0</rabbit-amqp-client.version>
     </properties>
 
     <dependencies>
+        <dependency>
+            <groupId>com.rabbitmq</groupId>
+            <artifactId>amqp-client</artifactId>
+        </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter</artifactId>
