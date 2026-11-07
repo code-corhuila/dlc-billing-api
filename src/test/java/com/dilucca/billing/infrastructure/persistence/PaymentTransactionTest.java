@@ -60,6 +60,11 @@ class PaymentTransactionTest {
         var snapshot=mapper.readTree(owner.queryForObject("SELECT invoice_snapshot::text FROM billing.payment_receipts WHERE invoice_id=? AND invoice_version=3",String.class,invoice));
         assertEquals("6.00",snapshot.get("balance").stringValue());
         assertEquals("PARTIALLY_PAID",snapshot.get("status").stringValue());
+        UUID source=owner.queryForObject("SELECT event_id FROM billing.payment_receipts WHERE invoice_id=? AND invoice_version=3",UUID.class,invoice);
+        var historical=new JdbcInvoiceEventQuery(runtime,mapper).find(invoice,source).orElseThrow();
+        assertEquals("6.00",historical.invoice().balance());
+        assertEquals("4.01",historical.recentPaymentAmount());
+        assertTrue(new JdbcInvoiceEventQuery(runtime,mapper).find(UUID.randomUUID(),source).isEmpty());
         assertEquals(first,pay(key,"4.01",2));
     }
     @Test void locksCompetingPaymentsAndSameKeyReplaysConcurrently() throws Exception {
