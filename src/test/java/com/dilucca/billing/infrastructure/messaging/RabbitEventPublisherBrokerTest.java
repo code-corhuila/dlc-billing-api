@@ -19,8 +19,12 @@ class RabbitEventPublisherBrokerTest {
             channel.queueDeclare(queue,true,false,false,null); channel.queueBind(queue,exchange,"InvoiceIssued");
             try {
                 UUID id=UUID.randomUUID(); String body="{\"eventId\":\""+id+"\"}";
-                new RabbitEventPublisher(() -> System.getenv("BILLING_TEST_RABBITMQ_URI"),exchange,Duration.ofSeconds(3),true)
-                        .publish("InvoiceIssued",id,body);
+                var credential=new java.util.concurrent.atomic.AtomicReference<>(System.getenv("BILLING_TEST_RABBITMQ_URI"));
+                var publisher=new RabbitEventPublisher(credential::get,exchange,Duration.ofSeconds(3),true);
+                credential.set("invalid-rotated-credential");
+                assertThrows(EventPublisher.Unavailable.class,() -> publisher.publish("InvoiceIssued",id,body));
+                credential.set(System.getenv("BILLING_TEST_RABBITMQ_URI"));
+                publisher.publish("InvoiceIssued",id,body);
                 var received=channel.basicGet(queue,false);
                 assertNotNull(received); assertEquals(body,new String(received.getBody(),StandardCharsets.UTF_8));
                 assertEquals(id.toString(),received.getProps().getMessageId());

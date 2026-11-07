@@ -62,6 +62,12 @@ class OutboxRelayTest {
         assertEquals(0,relay.relay(now.plusSeconds(100000),10));
         assertThrows(IllegalArgumentException.class,() -> relay.relay(now,0));
     }
+    @Test void missingMountedCredentialKeepsTheEventPending(@org.junit.jupiter.api.io.TempDir java.nio.file.Path directory) {
+        var configuration=new com.dilucca.billing.api.BillingOutboxConfiguration(runtime,
+                directory.resolve("not-provisioned").toString(),"billing.events",true,10);
+        configuration.publish();
+        assertEquals("PENDING",status()); assertEquals(1,attempts());
+    }
     @Test void competingWorkersSkipLockedDelivery() throws Exception {
         var entered=new CountDownLatch(1); var release=new CountDownLatch(1); var calls=new AtomicInteger();
         var relay=new JdbcOutboxRelay(runtime,(type,id,body) -> {
