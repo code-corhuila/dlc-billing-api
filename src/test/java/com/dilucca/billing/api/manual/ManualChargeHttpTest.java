@@ -3,9 +3,11 @@ package com.dilucca.billing.api.manual;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 import com.dilucca.billing.api.pricing.CreatedResource;
 import com.dilucca.billing.infrastructure.persistence.JdbcManualChargeRecording;
+import com.dilucca.billing.infrastructure.persistence.JdbcManualChargeQuery;
 import com.dilucca.billing.infrastructure.security.IamSessionValidationClient;
 import java.time.Instant;
 import java.util.*;
@@ -26,6 +28,7 @@ class ManualChargeHttpTest {
     @Autowired MockMvc mvc;
     @MockitoBean JdbcTemplate jdbc;
     @MockitoBean JdbcManualChargeRecording recording;
+    @MockitoBean JdbcManualChargeQuery query;
     @MockitoBean JwtDecoder decoder;
     @MockitoBean IamSessionValidationClient iam;
     @BeforeEach void identities() {
@@ -72,5 +75,16 @@ class ManualChargeHttpTest {
         mvc.perform(request("ADMINISTRATOR",body())).andExpect(status().isConflict());
         doThrow(new org.springframework.dao.DataAccessResourceFailureException("private details")).when(recording).record(any(),any(),anyString(),any(),any());
         mvc.perform(request("ADMINISTRATOR",body())).andExpect(status().isServiceUnavailable()).andExpect(jsonPath("$.error").value("SERVICE_UNAVAILABLE"));
+    }
+    @Test void protectedReadUsesCurrentActorAndRoleWithNoStoreAndHidesMissingScope() throws Exception {
+        when(query.find(any(),any(),anyString())).thenReturn(Map.of("id",source,"justification","Protected reason"));
+        for(String role:List.of("ADMINISTRATOR","DENTIST")) {
+            mvc.perform(get(PATH+"/"+source).header("Authorization","Bearer "+role)).andExpect(status().isOk())
+                    .andExpect(header().string("Cache-Control","no-store")).andExpect(jsonPath("$.justification").value("Protected reason"));
+            verify(query).find(source,actor,role);
+        }
+        mvc.perform(get(PATH+"/"+source).header("Authorization","Bearer SECRETARY_ASSISTANT")).andExpect(status().isForbidden());
+        doThrow(new JdbcManualChargeRecording.Missing()).when(query).find(any(),any(),anyString());
+        mvc.perform(get(PATH+"/"+source).header("Authorization","Bearer DENTIST")).andExpect(status().isNotFound());
     }
 }
