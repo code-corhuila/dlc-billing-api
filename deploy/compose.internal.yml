@@ -1,0 +1,10 @@
+# Opt-in public service trust; issuer/audience/subject stay in the private env file.
+services:
+  billing-service:
+    environment:
+      BILLING_SERVICE_JWT_PUBLIC_KEY_FILE: /run/billing-service-trust/public.pem
+    volumes:
+      - type: bind
+        source: ${BILLING_SERVICE_TRUST_DIR:?Set BILLING_SERVICE_TRUST_DIR to the public service trust directory}
+        target: /run/billing-service-trust
+        read_only: true
