@@ -51,6 +51,8 @@ public class BillingSecurityConfiguration {
                         .hasAnyRole("ADMINISTRATOR", "SECRETARY_ASSISTANT")
                         .requestMatchers(HttpMethod.GET, "/api/v1/invoices/*/payments")
                         .hasAnyRole("ADMINISTRATOR", "SECRETARY_ASSISTANT")
+                        .requestMatchers(HttpMethod.GET, "/api/v1/invoices/*/pdf")
+                        .hasAnyRole("ADMINISTRATOR", "SECRETARY_ASSISTANT")
                         .requestMatchers(HttpMethod.POST, "/api/v1/invoices/*/payments")
                         .hasAnyRole("ADMINISTRATOR", "SECRETARY_ASSISTANT")
                         .anyRequest()
