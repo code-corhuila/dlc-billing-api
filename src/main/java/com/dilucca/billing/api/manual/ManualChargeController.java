@@ -3,6 +3,7 @@ package com.dilucca.billing.api.manual;
 import com.dilucca.billing.api.pricing.PriceCreationConflict;
 import com.dilucca.billing.domain.invoicing.*;
 import com.dilucca.billing.infrastructure.persistence.JdbcManualChargeRecording;
+import com.dilucca.billing.infrastructure.persistence.JdbcManualChargeQuery;
 import java.util.*;
 import org.springframework.dao.DataAccessException;
 import org.springframework.http.*;
@@ -17,7 +18,16 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/api/v1/manual-charges")
 public class ManualChargeController {
     private final JdbcManualChargeRecording recording;
-    public ManualChargeController(JdbcManualChargeRecording recording) { this.recording=recording; }
+    private final JdbcManualChargeQuery query;
+    public ManualChargeController(JdbcManualChargeRecording recording,JdbcManualChargeQuery query) { this.recording=recording; this.query=query; }
+    @GetMapping("/{charge}")
+    public ResponseEntity<?> read(@PathVariable String charge,@AuthenticationPrincipal Jwt jwt) {
+        UUID identifier=id(charge),actor;
+        String role;
+        try { actor=id(jwt.getSubject()); role=jwt.getClaimAsStringList("roles").contains("ADMINISTRATOR") ? "ADMINISTRATOR" : "DENTIST"; }
+        catch(Exception invalid) { throw new InvalidIdentity(); }
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(query.find(identifier,actor,role));
+    }
     @PostMapping(consumes=MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<String> record(@RequestHeader("Idempotency-Key") List<String> keys,
             @RequestHeader(value="X-Correlation-Id",required=false) String trace,@RequestBody String body,@AuthenticationPrincipal Jwt jwt) {
