@@ -34,7 +34,7 @@ public final class JdbcInvoiceIssuance {
                         SELECT b.line_total,(b.status='BILLED' AND e.status='CHARGES_COMPLETED'
                           AND (b.procedure_id=ANY(e.declared_procedure_ids)
                                OR b.source_record_id=ANY(e.declared_manual_charge_ids))
-                          AND (b.catalog_version IS NOT NULL OR (b.pricing_authority_role IN ('DENTIST','ADMINISTRATOR')
+                          AND ((b.catalog_version IS NOT NULL AND NOT b.approval_required) OR (b.pricing_authority_role IN ('DENTIST','ADMINISTRATOR')
                                AND length(btrim(b.justification))>0))
                           AND EXISTS(SELECT FROM billing.invoice_appointment_validations v
                                WHERE v.invoice_id=i.invoice_id AND v.patient_id=b.patient_id
