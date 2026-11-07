@@ -53,7 +53,7 @@ public class JdbcClinicalChargeReconciliation {
                 if(!source.patient().equals(d.patientId()) || !source.appointment().equals(d.appointmentId())) throw new Conflict();
                 price(source,procedure,account.id(),trace.actorUserId(),now);
             }
-            if(!sources.isEmpty() && !exists("SELECT EXISTS(SELECT FROM billing.clinical_sources s WHERE procedure_id=? AND NOT EXISTS(SELECT FROM billing.billable_items b WHERE b.source_record_id=s.source_record_id AND b.encounter_account_id=?))",procedure,account.id()))
+            if(!sources.isEmpty() && !exists("SELECT EXISTS(SELECT FROM billing.clinical_sources s WHERE procedure_id=? AND NOT EXISTS(SELECT FROM billing.billable_items b WHERE b.source_record_id=s.source_record_id AND b.encounter_account_id=? AND NOT b.approval_required))",procedure,account.id()))
                 procedureReceipt(procedure,account.id(),d,trace,cause,now);
         }
         long receipts=jdbc.queryForObject("SELECT count(*) FROM billing.procedure_charge_receipts WHERE encounter_account_id=? AND procedure_id=ANY(?::uuid[])",Long.class,account.id(),array(d.procedureIds()));
@@ -75,14 +75,14 @@ public class JdbcClinicalChargeReconciliation {
         }
         if(actor==null || s.code()==null) return;
         String sql=s.type().equals("BASE_PROCEDURE")
-                ? "SELECT base_price,name,version FROM billing.procedure_prices WHERE procedure_code=? AND status='ACTIVE' AND currency='COP' AND valid_from<=? AND(valid_to IS NULL OR valid_to>?)"
-                : "SELECT unit_price,rule_code,version FROM billing.additional_price_rules WHERE rule_code=? AND status='ACTIVE' AND currency='COP' AND NOT requires_approval AND valid_from<=? AND(valid_to IS NULL OR valid_to>?) AND item_type=?";
+                ? "SELECT base_price,name,version,FALSE FROM billing.procedure_prices WHERE procedure_code=? AND status='ACTIVE' AND currency='COP' AND valid_from<=? AND(valid_to IS NULL OR valid_to>?)"
+                : "SELECT unit_price,rule_code,version,requires_approval FROM billing.additional_price_rules WHERE rule_code=? AND status='ACTIVE' AND currency='COP' AND valid_from<=? AND(valid_to IS NULL OR valid_to>?) AND item_type=?";
         var parameters=new ArrayList<Object>(List.of(s.code(),Timestamp.from(s.completed()),Timestamp.from(s.completed())));
         if(!s.type().equals("BASE_PROCEDURE")) parameters.add(s.type());
-        var prices=jdbc.query(sql,(rs,row) -> new Price(rs.getBigDecimal(1),rs.getString(2),rs.getInt(3)),parameters.toArray());
+        var prices=jdbc.query(sql,(rs,row) -> new Price(rs.getBigDecimal(1),rs.getString(2),rs.getInt(3),rs.getBoolean(4)),parameters.toArray());
         if(prices.isEmpty()) return; if(prices.size()!=1) throw new Conflict(); var p=prices.getFirst();
-        jdbc.update("INSERT INTO billing.billable_items(item_id,encounter_account_id,patient_id,appointment_id,procedure_id,source_record_id,item_type,description,quantity,unit_price,catalog_version,created_by,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-                s.id(),account,s.patient(),s.appointment(),procedure,s.id(),s.type(),p.description(),s.quantity(),p.amount(),p.version(),actor,Timestamp.from(now),Timestamp.from(now));
+        jdbc.update("INSERT INTO billing.billable_items(item_id,encounter_account_id,patient_id,appointment_id,procedure_id,source_record_id,item_type,description,quantity,unit_price,catalog_version,created_by,created_at,updated_at,approval_required) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                s.id(),account,s.patient(),s.appointment(),procedure,s.id(),s.type(),p.description(),s.quantity(),p.amount(),p.version(),actor,Timestamp.from(now),Timestamp.from(now),p.approval());
     }
     private void procedureReceipt(UUID procedure,UUID account,ClinicalFact.Declaration d,ClinicalFact.Trace trace,UUID cause,Instant now) {
         var previous=jdbc.query("SELECT encounter_account_id FROM billing.procedure_charge_receipts WHERE procedure_id=?",(rs,row) -> rs.getObject(1,UUID.class),procedure);
@@ -104,6 +104,6 @@ public class JdbcClinicalChargeReconciliation {
     private String array(List<UUID> values) { return "{"+String.join(",",values.stream().map(UUID::toString).toList())+"}"; }
     private record Account(UUID id,UUID patient,UUID appointment,String status) { }
     private record Source(UUID id,String type,BigDecimal quantity,String code,Instant completed,UUID patient,UUID appointment) { }
-    private record Price(BigDecimal amount,String description,int version) { }
+    private record Price(BigDecimal amount,String description,int version,boolean approval) { }
     public static class Conflict extends RuntimeException { public Conflict() { super("Declared financial sources conflict with stored facts"); } }
 }
