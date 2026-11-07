@@ -31,6 +31,11 @@ final class JdbcIdempotentCreation {
 
     CreatedResource execute(UUID key, UUID actor, String operation, String resource,
             List<?> canonicalRequest, Function<Instant, CreatedResource> write) {
+        return execute(key,Objects.requireNonNull(actor).toString(),operation,resource,canonicalRequest,write);
+    }
+
+    CreatedResource execute(UUID key, String actor, String operation, String resource,
+            List<?> canonicalRequest, Function<Instant, CreatedResource> write) {
         Objects.requireNonNull(key);
         Objects.requireNonNull(actor);
         String hash = hash(mapper.writeValueAsString(canonicalRequest));
@@ -57,7 +62,7 @@ final class JdbcIdempotentCreation {
         });
     }
 
-    private CreatedResource replay(UUID actor, UUID key, String operation, String resource, String hash) {
+    private CreatedResource replay(String actor, UUID key, String operation, String resource, String hash) {
         return jdbc.query("""
                 SELECT request_hash, response_status, response_headers->>'Location' AS location,
                        response_body::text AS body FROM billing.idempotency_records
