@@ -22,3 +22,11 @@ full verify passed 220 tests with zero failures/errors/skips using PostgreSQL an
 RabbitMQ, with no other microservices running for the test. Evidence:
 `target/price-correction-full-verify.log`. Real IAM/Gateway acceptance remains
 deferred; local HTTP tests isolate authentication collaborators.
+
+The subsequent complete local verify passed 223 tests with no failures/errors/
+skips (`target/billing-offline-final-verify.log`). Forward migration 028 also
+protects justified historical care-time prices that predate manual_charges.
+Issuance rejects pending catalog proposals, preserving the existing exception
+for valid justified manual care prices without a second approval. The Portal
+form, retry intent, version reset and navigation guard passed 609 tests and build;
+see Portal `docs/administrative-correction.md`.

@@ -41,6 +41,7 @@ class InvoiceIssuanceTransactionTest {
         owner.update("DELETE FROM billing.invoice_appointment_validations WHERE invoice_id=?",invoice);
         owner.update("DELETE FROM billing.invoice_items WHERE invoice_id=?",invoice);
         owner.update("DELETE FROM billing.invoices WHERE invoice_id=?",invoice);
+        owner.update("DELETE FROM billing.price_corrections WHERE item_id=?",item);
         owner.update("DELETE FROM billing.billable_items WHERE item_id=?",item);
         owner.update("DELETE FROM billing.encounter_accounts WHERE encounter_account_id=?",account);
     }
@@ -85,6 +86,19 @@ class InvoiceIssuanceTransactionTest {
     @Test void requiresTerminalOwnerEvidence() {
         owner.update("DELETE FROM billing.invoice_appointment_validations WHERE invoice_id=?",invoice);
         assertThrows(InvoiceIssuanceConflict.class,() -> issue(UUID.randomUUID(),1));
+    }
+
+    @Test void pendingCatalogPriceCannotBeIssuedUntilAdministrativeCorrection() {
+        owner.update("DELETE FROM billing.invoice_items WHERE invoice_id=?",invoice);
+        owner.update("DELETE FROM billing.billable_items WHERE item_id=?",item);
+        owner.update("INSERT INTO billing.billable_items(item_id,encounter_account_id,patient_id,appointment_id,procedure_id,source_record_id,item_type,description,quantity,unit_price,created_by,status,catalog_version,approval_required) VALUES (?,?,?,?,?,?,'BASE_PROCEDURE','Synthetic pending catalog source',1,0.01,?,'BILLED',1,TRUE)",
+                item,account,patient,appointment,procedure,UUID.randomUUID(),actor);
+        owner.update("INSERT INTO billing.invoice_items VALUES (?,?,?)",invoice,patient,item);
+        assertThrows(InvoiceIssuanceConflict.class,()->issue(UUID.randomUUID(),1));
+        assertEquals(0,owner.queryForObject("SELECT count(*) FROM billing.invoice_issuances WHERE invoice_id=?",Integer.class,invoice));
+        new JdbcPriceCorrectionRecording(runtime,mapper).record(UUID.randomUUID(),actor,item,
+                new com.dilucca.billing.api.items.PriceCorrectionInput(new java.math.BigDecimal("0.02"),"Administrative correction",1));
+        assertEquals("ISSUED",mapper.readTree(issue(UUID.randomUUID(),2).body()).get("status").stringValue());
     }
 
     private void manualPrice(String role,String justification,String price) {
