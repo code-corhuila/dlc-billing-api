@@ -1,7 +1,8 @@
 # Billing delivery gates
 
-> Historical snapshot. For the current status, including implemented payments,
-> PDF and relay, see the [2026-11-07 API contract audit](api-contract-audit-2026-11-07.md).
+> Historical snapshot. For current local preparation and deferred owner acceptance,
+> see [pre-integration readiness](pre-integration-readiness.md). The dated audit
+> below also predates later clinical, manual and correction implementations.
 
 Repository inspection on 2026-11-06. A working catalog integration does not
 establish delivery of the full Billing service. Official requirements remain in
