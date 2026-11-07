@@ -18,6 +18,7 @@ class EncounterWriteCoordinatorTest {
         runtime=new JdbcTemplate(new DriverManagerDataSource(System.getenv("BILLING_TEST_JDBC_URL"),"billing_runtime",System.getenv("BILLING_TEST_RUNTIME_DB_PASSWORD")));
     }
     @AfterEach void clean() {
+        owner.update("DELETE FROM billing.clinical_declarations WHERE clinical_record_id=?",record);
         owner.update("DELETE FROM billing.idempotency_records WHERE actor_id='service:clinical-test' AND resource_key LIKE ?","%"+record+"%");
         owner.update("DELETE FROM billing.manual_charge_admissions WHERE clinical_record_id=?",record);
         owner.update("DELETE FROM billing.encounter_freezes WHERE clinical_record_id=?",record);
@@ -68,5 +69,11 @@ class EncounterWriteCoordinatorTest {
         assertTrue(service().freezeCommand(key,"clinical-test",record,consultation,operation).settled());
         assertThrows(com.dilucca.billing.api.pricing.PriceCreationConflict.class,
                 () -> service().freezeCommand(key,"clinical-test",record,consultation,UUID.randomUUID()));
+    }
+    @Test void committedClinicalDeclarationRejectsReleaseBeforeMoneyReconciliation() {
+        service().freeze(record,consultation,operation);
+        owner.update("INSERT INTO billing.clinical_declarations(clinical_record_id,consultation_id,patient_id,appointment_id,dentist_id,procedure_ids,manual_charge_ids,completed_at,clinical_version,fact_hash,financial_fact) "
+                +"VALUES (?,?,?,?,?,'{}','{}',now(),1,repeat('a',64),'{}')",record,consultation,UUID.randomUUID(),UUID.randomUUID(),UUID.randomUUID());
+        assertThrows(JdbcEncounterWriteCoordinator.Conflict.class,() -> service().release(record,consultation,operation));
     }
 }
