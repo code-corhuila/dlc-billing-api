@@ -13,14 +13,16 @@ data model; this report changes neither contract nor business authorization.
 | Shell/Gateway | Real assets and authenticated HTTP forwarding; `/api/v1` deployment prefix established | Browser session and Secure-cookie acceptance, stage TLS |
 | Billable items | Owner-local snapshots and real filtered GET for Administrator/Assistant; see [read evidence](billable-item-reads.md) | Clinical ingestion, encounter transitions and separately authorized Dentist reads |
 | Manual charges | Portal HTTP adapter exists; no API controller or persistence | Care authority/correlation, exact quantity/price, admission/closure serialization and outbox |
-| Invoices | List/detail and atomic draft POST with real IAM/Appointments validation; see [draft evidence](invoice-draft-real-owners.md) | Clinical source production/declaration, immutable issuance and PDF |
+| Invoices | List/detail, draft POST and immutable issuance with real IAM/Appointments; [issuance evidence](invoice-issuance-real-owners.md) includes broker-down financial commit and canonical outbox | Clinical/pricing source workflows, outbox relay and PDF |
 | Payments | Portal HTTP registration/history adapters exist; no API controller or persistence | Atomic locked balance updates, idempotency, immutable payment history and notifications |
-| Integration events | Real broker starts in isolated tests | Owner inbox/outbox, event publication/consumption and notification delivery |
+| Integration events | InvoiceIssued v1 durable outbox and audit snapshot; official schema checked with broker stopped | Clinical inbox, outbox relay, event consumption and notification delivery |
 
-The API implements catalog controllers, billable-item reads, invoice reads and
-draft creation. Draft writes require an owner-issued Appointments service
+The API implements catalog controllers, billable-item reads, invoice reads,
+draft creation and versioned issuance. Draft writes require an owner-issued Appointments service
 credential and fail closed if validation is unavailable. Unmatched operations
-remain denied: issuance, payments and PDF still lack owner operations.
+remain denied: payments and PDF still lack owner operations. Issuance stores
+durable event intent; publication/worker delivery remain unverified and are not
+implied by successful financial commit.
 Do not resolve it by enabling a route that returns fabricated invoices or by
 falling back to the standalone Portal's demonstration data.
 
