@@ -21,7 +21,7 @@ def main():
         for role,password in (("billing_migrator",p.secrets[1]),("billing_runtime",p.secrets[2])):
             p.sql("\\getenv password PROVISION_PASSWORD\nALTER ROLE "+role+" PASSWORD :'password';",{"PROVISION_PASSWORD":password})
         p.migrate(source,"billing",p.secrets[1])
-        for name in ("runtime-permissions","billable-snapshots","invoice-storage","invoice-draft-permissions","invoice-issuance","outbox-deliveries"):
+        for name in ("runtime-permissions","billable-snapshots","invoice-storage","invoice-draft-permissions","invoice-issuance","outbox-deliveries","payments"):
             p.sql((source/"tests"/(name+".sql")).read_text())
         p.migrate(source,"billing",p.secrets[1])
         broker=p.container("broker","rabbitmq:4.1-alpine",dict(RABBITMQ_DEFAULT_USER="integration",RABBITMQ_DEFAULT_PASS=p.secrets[5]))
