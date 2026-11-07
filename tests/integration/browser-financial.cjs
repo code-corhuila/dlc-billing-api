@@ -14,6 +14,11 @@ assert.match(env.BILLING_BROWSER_INVOICE, /^[a-f0-9-]{36}$/);
   const detail = origin + '/app/billing/invoices/' + env.BILLING_BROWSER_INVOICE;
   const steps = [];
   const failures = [];
+  let sessionToken;
+  page.on('request', request => {
+    if (request.url().startsWith(origin + '/api/v1/invoices'))
+      sessionToken = request.headers().authorization || sessionToken;
+  });
   page.on('response', response => {
     if (response.status() >= 400 && failures.length < 20)
       failures.push({ path: new URL(response.url()).pathname, status: response.status() });
@@ -60,6 +65,12 @@ assert.match(env.BILLING_BROWSER_INVOICE, /^[a-f0-9-]{36}$/);
     await page.getByRole('button', { name: 'Cerrar sesión', exact: true }).first().click();
     assert.equal((await logout).status(), 204, 'IAM must confirm actual session revocation');
     await page.waitForURL(url => url.pathname === '/login'); steps.push('real-iam-logout');
+    assert.ok(sessionToken);
+    const revoked = await page.evaluate(async ({ path, authorization }) =>
+      (await fetch(path, { headers: { Authorization: authorization } })).status,
+      { path: '/api/v1/invoices/' + env.BILLING_BROWSER_INVOICE, authorization: sessionToken });
+    assert.equal(revoked, 401, 'Billing must reject the JWT of the revoked IAM session');
+    steps.push('revoked-session-denied-by-billing');
     await fs.writeFile('/evidence/result.json', JSON.stringify({ passed: true, steps, failures }, null, 2));
     console.log('BROWSER_FINANCIAL:PASS');
   } catch (error) {
