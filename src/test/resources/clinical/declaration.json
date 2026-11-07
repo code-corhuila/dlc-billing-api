@@ -1,0 +1,11 @@
+{
+  "eventId":"83000000-0000-4000-8000-000000000001","eventType":"ClinicalCareCompleted",
+  "aggregateId":"82000000-0000-4000-8000-000000000002","aggregateType":"ClinicalRecord",
+  "occurredAt":"2026-11-06T15:00:00Z","version":1,"producer":"clinical-service",
+  "payload":{"clinicalRecordId":"82000000-0000-4000-8000-000000000002","consultationId":"82000000-0000-4000-8000-000000000003",
+    "patientId":"81000000-0000-4000-8000-000000000004","appointmentId":"81000000-0000-4000-8000-000000000005",
+    "dentistId":"81000000-0000-4000-8000-000000000009","procedureIds":["81000000-0000-4000-8000-000000000003"],
+    "manualChargeIds":[],"completedAt":"2026-11-06T15:00:00Z","clinicalVersion":3},
+  "metadata":{"correlationId":"81000000-0000-4000-8000-000000000007","causationId":"81000000-0000-4000-8000-000000000008",
+    "actorUserId":"81000000-0000-4000-8000-000000000009"}
+}

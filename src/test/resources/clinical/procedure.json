@@ -1,0 +1,14 @@
+{
+  "eventId":"81000000-0000-4000-8000-000000000001","eventType":"ProcedureCompleted",
+  "aggregateId":"81000000-0000-4000-8000-000000000002","aggregateType":"Treatment",
+  "occurredAt":"2026-11-06T15:00:00Z","version":1,"producer":"clinical-service",
+  "payload":{
+    "procedureId":"81000000-0000-4000-8000-000000000003","treatmentId":"81000000-0000-4000-8000-000000000002",
+    "patientId":"81000000-0000-4000-8000-000000000004","appointmentId":"81000000-0000-4000-8000-000000000005",
+    "procedureCode":"RESTORATION","completedAt":"2026-11-06T15:00:00Z",
+    "additionalItems":[{"type":"ADDITIONAL_MATERIAL","quantity":"0.5000","clinicalReason":"Protected synthetic clinical reason",
+      "sourceRecordId":"81000000-0000-4000-8000-000000000006"}]
+  },
+  "metadata":{"correlationId":"81000000-0000-4000-8000-000000000007","causationId":"81000000-0000-4000-8000-000000000008",
+    "actorUserId":"81000000-0000-4000-8000-000000000009"}
+}
