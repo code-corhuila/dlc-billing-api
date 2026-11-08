@@ -28,15 +28,19 @@ public final class JdbcInvoiceDraftCreation {
                 String placeholders=String.join(",",Collections.nCopies(request.itemIds().size(),"?"));
                 var sources=jdbc.query("""
                         SELECT b.item_id,b.patient_id,b.appointment_id,b.status,b.line_total,
-                               EXISTS(SELECT 1 FROM billing.invoice_items i WHERE i.item_id=b.item_id) AS allocated
-                        FROM billing.billable_items b WHERE b.item_id IN (
+                               EXISTS(SELECT 1 FROM billing.invoice_items i WHERE i.item_id=b.item_id) AS allocated,
+                               e.status='CHARGES_COMPLETED' AS completed
+                        FROM billing.billable_items b
+                        JOIN billing.encounter_accounts e ON e.encounter_account_id=b.encounter_account_id
+                        WHERE b.item_id IN (
                         """+placeholders+") ORDER BY b.item_id FOR UPDATE OF b",(rs,row) -> new Source(
                         rs.getObject("item_id",UUID.class),rs.getObject("patient_id",UUID.class),
                         rs.getObject("appointment_id",UUID.class),rs.getString("status"),
-                        rs.getBigDecimal("line_total"),rs.getBoolean("allocated")),request.itemIds().toArray());
+                        rs.getBigDecimal("line_total"),rs.getBoolean("allocated"),rs.getBoolean("completed")),
+                        request.itemIds().toArray());
                 if (sources.size()!=request.itemIds().size() || sources.stream().anyMatch(source ->
                         !source.patient().equals(request.patientId()) || !source.status().equals("UNBILLED")
-                        || source.allocated() || request.appointmentId()!=null
+                        || source.allocated() || !source.completed() || request.appointmentId()!=null
                         && !source.appointment().equals(request.appointmentId()))) throw conflict();
                 BigDecimal total=sources.stream().map(Source::amount).reduce(new BigDecimal("0.00"),BigDecimal::add);
                 if (total.compareTo(new BigDecimal("999999999999.99"))>0) throw conflict();
@@ -67,5 +71,8 @@ public final class JdbcInvoiceDraftCreation {
     }
 
     private InvoiceDraftConflict conflict() { return new InvoiceDraftConflict("INVOICE_SOURCE_CONFLICT"); }
-    private record Source(UUID id,UUID patient,UUID appointment,String status,BigDecimal amount,boolean allocated) { }
+    // Only charges of an encounter whose declared charges are complete can be invoiced (ADR-015); rejecting them
+    // here keeps them UNBILLED instead of locking them in a draft that could never be issued.
+    private record Source(UUID id,UUID patient,UUID appointment,String status,BigDecimal amount,boolean allocated,
+            boolean completed) { }
 }

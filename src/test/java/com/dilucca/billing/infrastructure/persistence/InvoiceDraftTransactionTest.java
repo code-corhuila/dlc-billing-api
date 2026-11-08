@@ -24,7 +24,8 @@ class InvoiceDraftTransactionTest {
         runtime=new JdbcTemplate(new DriverManagerDataSource(System.getenv("BILLING_TEST_JDBC_URL"),
                 "billing_runtime",System.getenv("BILLING_TEST_RUNTIME_DB_PASSWORD")));
         owner.update("INSERT INTO billing.encounter_accounts(encounter_account_id,clinical_record_id,consultation_id,"
-                +"appointment_id,patient_id) VALUES (?,?,?,?,?)",account,UUID.randomUUID(),UUID.randomUUID(),appointment,patient);
+                +"appointment_id,patient_id,status) VALUES (?,?,?,?,?,'CHARGES_COMPLETED')",account,UUID.randomUUID(),
+                UUID.randomUUID(),appointment,patient);
         for (UUID id:items) owner.update("""
                 INSERT INTO billing.billable_items(item_id,encounter_account_id,patient_id,appointment_id,procedure_id,
                 source_record_id,item_type,description,quantity,unit_price,created_by)
@@ -65,6 +66,16 @@ class InvoiceDraftTransactionTest {
         assertThrows(InvoiceDraftConflict.class,()->service.create(UUID.randomUUID(),actor,new InvoiceDraft(patient,null,List.of(UUID.randomUUID()))));
         service.create(UUID.randomUUID(),actor,request());
         assertThrows(InvoiceDraftConflict.class,()->service.create(UUID.randomUUID(),actor,request()));
+    }
+
+    @Test void rejectsChargesWhoseEncounterIsNotCompletedAndKeepsThemUnbilled() {
+        owner.update("UPDATE billing.encounter_accounts SET status='DECLARED' WHERE encounter_account_id=?",account);
+        AtomicInteger reads=new AtomicInteger();
+        var service=service((id,p)->{reads.incrementAndGet();return 7;});
+        assertThrows(InvoiceDraftConflict.class,()->service.create(UUID.randomUUID(),actor,request()));
+        assertEquals(0,reads.get());
+        assertEquals(2L,owner.queryForObject("SELECT count(*) FROM billing.billable_items WHERE encounter_account_id=? AND status='UNBILLED'",Long.class,account));
+        assertEquals(0L,owner.queryForObject("SELECT count(*) FROM billing.invoices WHERE created_by=?",Long.class,actor));
     }
 
     @Test void rollsBackEveryWriteWhenAuthorityOrPersistenceFails() {
