@@ -20,7 +20,10 @@ the idempotency key is its causationId. Changed expectedVersion under the same
 actor/key conflicts; unchanged retries replay before domain-state checks.
 No broker, worker, PDF or email call is made during the financial transaction.
 
-The service is not exposed by this increment. Owner tests use explicitly
+This transaction increment originally kept HTTP closed; the following
+[HTTP increment](invoice-issuance-http.md) registers the service. Eight owner
+tests passed, including same/different-key concurrency and late event/replay
+failures. Owner tests use explicitly
 synthetic stored encounters/pricing evidence, not a Clinical producer or manual
 care-price HTTP workflow. Outbox relay, event-state PDF and delivery remain
 separate work; an outbox row is durable intent, not proof of publication.

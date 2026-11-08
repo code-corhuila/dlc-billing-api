@@ -60,6 +60,11 @@ The local implementation includes:
 - `GET /api/v1/invoices` and `GET /api/v1/invoices/{id}` for Administrator and
   Secretary/Assistant, with persisted item snapshots and filtered pagination.
   Requires DB changesets 010/011; see [invoice reads](docs/integration/invoice-reads.md).
+- `POST /api/v1/invoices` atomically allocates owned sources after real
+  Appointments FINALIZADA validation; see [draft evidence](docs/integration/invoice-draft-real-owners.md).
+- `POST /api/v1/invoices/{id}/issuances` checks the confirmed version and source
+  evidence, then fixes financial identity and stores event/history/replay together.
+  Requires DB changesets 014/015; see [issuance](docs/integration/invoice-issuance-http.md).
 
 Successful price creation returns HTTP 201 with a relative `Location` identifying the created price. The administrator identity is derived from the verified JWT subject, never from the request body or identity headers.
 
@@ -73,7 +78,7 @@ Additional rule operations require `billing.additional_price_rules` from `billin
 
 - Provisioning and renewal of the separate `identity:validate` service credential for the connected private IAM session check. Staff JWTs cannot substitute for it.
 - Remaining Billing REST endpoints defined in the OpenAPI contract.
-- Invoice creation/issuance and payment persistence/transactions.
+- Clinical source ingestion, outbox relay, PDF and payment persistence/transactions.
 - Browser acceptance of the Billing portal within the real shell; local HTTP
   routing, catalog writes, IAM session renewal and revocation are verified in
   [the shell integration report](docs/integration/real-shell-local-verification.md).
