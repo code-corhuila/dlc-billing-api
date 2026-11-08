@@ -43,6 +43,10 @@ public class BillingInternalSecurityConfiguration {
                 .httpBasic(AbstractHttpConfigurer::disable).formLogin(AbstractHttpConfigurer::disable)
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(a -> a
+                        .requestMatchers(org.springframework.http.HttpMethod.POST,
+                                "/internal/v1/encounter-accounts/*/*/manual-charges/freezes",
+                                "/internal/v1/encounter-accounts/*/*/manual-charges/freezes/*/releases")
+                        .access((authentication,context) -> permitted(authentication.get(),env,"billing:encounter-freeze:write","BILLING_CLINICAL_SERVICE_SUBJECT"))
                         .requestMatchers(org.springframework.http.HttpMethod.GET,"/internal/v1/invoices/*/pdf")
                         .access((authentication,context) -> permitted(authentication.get(),env,"billing:invoice-pdf:read"))
                         .requestMatchers(org.springframework.http.HttpMethod.GET,"/internal/v1/invoices/*/notification-summary")
@@ -53,7 +57,10 @@ public class BillingInternalSecurityConfiguration {
         return http.build();
     }
     private AuthorizationDecision permitted(org.springframework.security.core.Authentication identity,Environment env,String scope) {
-        String worker=env.getProperty("BILLING_WORKER_SERVICE_SUBJECT","");
+        return permitted(identity,env,scope,"BILLING_WORKER_SERVICE_SUBJECT");
+    }
+    private AuthorizationDecision permitted(org.springframework.security.core.Authentication identity,Environment env,String scope,String property) {
+        String worker=env.getProperty(property,"");
         return new AuthorizationDecision(identity.isAuthenticated() && !worker.isBlank() && worker.equals(identity.getName())
                 && identity.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("SCOPE_"+scope)));
     }
