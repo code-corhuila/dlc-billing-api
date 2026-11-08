@@ -74,8 +74,8 @@ class InvoiceDraftTransactionTest {
                 CREATE FUNCTION billing.reject_draft_probe() RETURNS trigger LANGUAGE plpgsql AS $$
                 BEGIN RAISE EXCEPTION 'Synthetic allocation failure'; END $$;
                 CREATE TRIGGER reject_draft_probe BEFORE INSERT ON billing.invoice_items
-                FOR EACH ROW EXECUTE FUNCTION billing.reject_draft_probe();
-                """);
+                FOR EACH ROW WHEN (NEW.item_id='%s'::uuid) EXECUTE FUNCTION billing.reject_draft_probe();
+                """.formatted(items.stream().max(Comparator.comparing(UUID::toString)).orElseThrow()));
         try { assertThrows(org.springframework.dao.DataAccessException.class,()->service((id,p)->7).create(UUID.randomUUID(),actor,request())); }
         finally { owner.execute("DROP TRIGGER reject_draft_probe ON billing.invoice_items; DROP FUNCTION billing.reject_draft_probe()"); }
         assertEquals(0L,owner.queryForObject("SELECT count(*) FROM billing.invoices WHERE created_by=?",Long.class,actor));
@@ -94,5 +94,28 @@ class InvoiceDraftTransactionTest {
             Collections.sort(statuses);
             assertEquals(List.of(201,409),statuses);
         }
+    }
+
+    @Test void concurrentSameKeyReturnsOneStoredInvoice() throws Exception {
+        AtomicInteger reads=new AtomicInteger();
+        var service=service((id,p)->{reads.incrementAndGet();return 7;});
+        UUID key=UUID.randomUUID();
+        try (var pool=Executors.newFixedThreadPool(2)) {
+            var first=pool.submit(()->service.create(key,actor,request()));
+            var second=pool.submit(()->service.create(key,actor,request()));
+            assertEquals(first.get(10,TimeUnit.SECONDS),second.get(10,TimeUnit.SECONDS));
+        }
+        assertEquals(1,reads.get());
+    }
+
+    @Test void rejectsTotalOverflowBeforePersistingAnInvoice() {
+        List<UUID> large=List.of(UUID.randomUUID(),UUID.randomUUID());
+        for (UUID id:large) owner.update("""
+                INSERT INTO billing.billable_items(item_id,encounter_account_id,patient_id,appointment_id,procedure_id,
+                source_record_id,item_type,description,quantity,unit_price,created_by)
+                VALUES (?,?,?,?,?,?,'ADDITIONAL_MATERIAL','Synthetic overflow fixture',1,600000000000.00,?)
+                """,id,account,patient,appointment,UUID.randomUUID(),UUID.randomUUID(),actor);
+        assertThrows(InvoiceDraftConflict.class,()->service((id,p)->7).create(UUID.randomUUID(),actor,new InvoiceDraft(patient,null,large)));
+        assertEquals(0L,owner.queryForObject("SELECT count(*) FROM billing.invoices WHERE created_by=?",Long.class,actor));
     }
 }
