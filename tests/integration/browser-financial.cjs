@@ -46,7 +46,7 @@ assert.match(env.BILLING_BROWSER_INVOICE, /^[a-f0-9-]{36}$/);
     assert.equal((await issuance).status(), 200);
     await page.getByRole('button', { name: 'Descargar PDF', exact: true }).waitFor();
     steps.push('issued-through-ui'); await download('issued');
-    for (const [amount, label] of [['4.01', 'partial'], ['6.00', 'paid']]) {
+    for (const [amount, label] of [['5.01', 'partial'], ['5.00', 'paid']]) {
       await page.getByRole('button', { name: 'Registrar pago', exact: true }).click();
       await page.getByLabel('Valor del pago (COP)').fill(amount);
       await page.getByLabel('Método de pago').fill('SYNTHETIC_LOCAL');
