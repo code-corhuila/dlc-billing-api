@@ -92,4 +92,18 @@ class ClinicalChargeReconciliationTest {
         } finally { owner.execute("DROP TRIGGER "+trigger+" ON billing.outbox_events"); owner.execute("DROP FUNCTION billing."+trigger+"()"); }
         assertTrue(reconcile());
     }
+    @Test void eventHandlerProjectsReorderedFactsAndResolvesWithoutDuplicateMoneyEvents() throws Exception {
+        var worker=new JdbcClinicalEventHandling(runtime,mapper); prices(); freeze();
+        worker.receive(fixture("declaration")); worker.receive(fixture("procedure"));
+        worker.receive(fixture("consultation")); worker.receive(fixture("procedure"));
+        assertTrue(reconcile());
+        assertEquals(2,owner.queryForObject("SELECT count(*) FROM billing.outbox_events WHERE aggregate_id IN(SELECT encounter_account_id FROM billing.encounter_accounts WHERE clinical_record_id=?)",Integer.class,id("82",2)));
+    }
+    @Test void sweepResolvesAfterFreezeAndCatalogBecomeAvailableWithoutAnotherClinicalEvent() throws Exception {
+        var worker=new JdbcClinicalEventHandling(runtime,mapper);
+        worker.receive(fixture("procedure")); worker.receive(fixture("declaration"));
+        assertFalse(reconcile()); freeze(); prices();
+        assertEquals(1,worker.sweep(1)); assertTrue(reconcile());
+        assertEquals(0,worker.sweep(1));
+    }
 }
