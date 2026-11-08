@@ -41,12 +41,14 @@ class TestServiceIdentity {
         Files.createDirectories(root.resolve("billing-appointments"));
         Files.createDirectories(root.resolve("appointments"));
         token(root.resolve("billing-appointments/service-token"),service,"billing-integration",
-                "integration-appointments","appointments:encounter-status:read");
+                "integration-appointments","appointments:encounter-status:read assignments:read");
         token(root.resolve("appointments/iam-token"),service,"appointments-integration",
                 "integration-iam","identity:validate");
         Files.createDirectories(root.resolve("worker"));
         token(root.resolve("worker/token"),service,"worker-integration","integration-billing",
                 "billing:invoice-pdf:read billing:notification-summary:read");
+        Files.createDirectories(root.resolve("clinical"));
+        token(root.resolve("clinical/token"),service,"clinical-integration","integration-billing","billing:encounter-freeze:write");
     }
 
     static void token(Path file,KeyPair key,String subject,String audience,String scope) throws Exception {
