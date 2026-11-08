@@ -13,14 +13,14 @@ data model; this report changes neither contract nor business authorization.
 | Shell/Gateway | Real assets and authenticated HTTP forwarding; `/api/v1` deployment prefix established | Browser session and Secure-cookie acceptance, stage TLS |
 | Billable items | Owner-local snapshots and real filtered GET for Administrator/Assistant; see [read evidence](billable-item-reads.md) | Clinical ingestion, encounter transitions and separately authorized Dentist reads |
 | Manual charges | Portal HTTP adapter exists; no API controller or persistence | Care authority/correlation, exact quantity/price, admission/closure serialization and outbox |
-| Invoices | Portal HTTP list/detail/issuance/PDF adapters exist; no API controller or persistence | Draft creation from owned UNBILLED sources, administrative finalization, immutable issuance and PDF |
+| Invoices | Owner-local persistence and list/detail API; see [invoice reads](invoice-reads.md) | Draft creation from owned UNBILLED sources, administrative finalization, immutable issuance and PDF |
 | Payments | Portal HTTP registration/history adapters exist; no API controller or persistence | Atomic locked balance updates, idempotency, immutable payment history and notifications |
 | Integration events | Real broker starts in isolated tests | Owner inbox/outbox, event publication/consumption and notification delivery |
 
-The API implements catalog controllers and `BillableItemController` reads.
+The API implements catalog controllers, billable-item reads and invoice reads.
 Its security configuration denies unmatched requests. Therefore an invoice
-failure after fixing forwarding is not evidence
-of another Gateway routing defect: that owner operation is still missing.
+failure after fixing forwarding is not automatically another Gateway routing
+defect: invoice creation, issuance, payments and PDF still lack owner operations.
 Do not resolve it by enabling a route that returns fabricated invoices or by
 falling back to the standalone Portal's demonstration data.
 
