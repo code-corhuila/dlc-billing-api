@@ -41,6 +41,8 @@ public class BillingSecurityConfiguration {
                         .hasAnyRole("ADMINISTRATOR", "SECRETARY_ASSISTANT")
                         .requestMatchers(HttpMethod.POST, "/api/v1/additional-price-rules")
                         .hasRole("ADMINISTRATOR")
+                        .requestMatchers(HttpMethod.GET, "/api/v1/billable-items")
+                        .hasAnyRole("ADMINISTRATOR", "SECRETARY_ASSISTANT")
                         .anyRequest()
                         .denyAll())
                 .addFilterAfter(new IamSessionEligibilityFilter(iam), BearerTokenAuthenticationFilter.class)
