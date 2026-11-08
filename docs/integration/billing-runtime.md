@@ -17,8 +17,10 @@ the invoking shell, not in the application environment file:
 - `BILLING_STAGE`: develop, qa or main, matching the reviewed artifact.
 - `BILLING_ENV_FILE`: absolute path to the stage's private runtime environment.
 - `BILLING_PLATFORM_NETWORK`: existing external network for that same stage.
+- `BILLING_IAM_SECRETS_DIR`: stage credential directory, mounted read-only. The
+  authorized provider must write/renew its `service-token` atomically there.
 
-The environment file supplies the six existing application variables listed in
+The environment file supplies the application variables listed in
 `.env.example`, with an owner-scoped database runtime identity. Credentials,
 issuer and audience must come from the selected deployment. Never use the
 test database administrator or this test suite's issuer/audience in a deployment.
@@ -35,7 +37,18 @@ The service is reachable as `billing-service:8080` only by containers on the
 selected network; Compose publishes no host port and embeds no database or IAM.
 Configure the real Gateway route to preserve `/api/v1`, query parameters and
 the trusted authentication boundary. Merely starting Billing does not install
-the missing Gateway routes or complete revocation enforcement.
+the Gateway routes or validate a live IAM deployment.
+
+Billing now checks private IAM session eligibility after local JWT verification
+and before authorization/controller execution, including idempotent retries.
+Inactive sessions return 401; failed/unavailable validation returns a safe 503.
+Set `BILLING_IAM_ORIGIN` to the private IAM origin. HTTPS is mandatory unless
+`BILLING_IAM_LOCAL_DEVELOPMENT=true` explicitly selects isolated local HTTP.
+Compose sets the token-file path; direct launches must set an absolute
+`BILLING_IAM_SERVICE_TOKEN_FILE`. Missing/invalid/unreadable credentials deny
+authenticated requests. There is no bypass, token issuer, eligibility cache or
+staff-token substitution. Mount the directory so atomic file replacement is
+visible, and make the file readable by UID 10001 through stage provisioning.
 
 ## Isolated packaging verification
 

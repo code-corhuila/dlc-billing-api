@@ -57,7 +57,7 @@ public class BillingJwtDecoderConfiguration {
             if (!hasText(jwt.getClaim("sub"))
                     || !hasText(jwt.getClaim("jti"))
                     || !hasText(jwt.getClaim("sid"))
-                    || !hasStrings(jwt.getClaim("roles"))
+                    || !hasRoles(jwt.getClaim("roles"))
                     || !hasStrings(jwt.getClaim("permissions"))) {
                 return invalidToken("Required identity claims missing or invalid");
             }
@@ -72,8 +72,11 @@ public class BillingJwtDecoderConfiguration {
 
     private static boolean hasStrings(Object value) {
         return value instanceof List<?> values
-                && !values.isEmpty()
                 && values.stream().allMatch(BillingJwtDecoderConfiguration::hasText);
+    }
+
+    private static boolean hasRoles(Object value) {
+        return hasStrings(value) && !((List<?>) value).isEmpty();
     }
 
     private static OAuth2TokenValidatorResult invalidToken(String message) {
