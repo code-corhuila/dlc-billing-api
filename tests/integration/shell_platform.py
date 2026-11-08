@@ -38,6 +38,7 @@ class ShellPlatform(Platform):
         self.run("docker","run","-d","--name",name,"--network",self.prefix,
                  "--label","com.dilucca.integration="+self.prefix,"-p",f"127.0.0.1:{self.port}:80",
                  "--mount",f"type=bind,source={deployment},target=/usr/share/nginx/deployment,readonly",
+                 "--mount",f"type=bind,source={deployment/'auth-config.json'},target=/usr/share/nginx/auth/auth-config.json,readonly",
                  *[part for key in env for part in ("-e",key)],os.environ["FRONT_RUNTIME_IMAGE"],env=env)
         self.names.append(name)
         self.base=self.origin

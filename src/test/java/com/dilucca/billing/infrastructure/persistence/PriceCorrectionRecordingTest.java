@@ -60,10 +60,12 @@ class PriceCorrectionRecordingTest {
     }
     UUID allocate(String status) {
         UUID invoice=UUID.randomUUID();
-        owner.update("INSERT INTO billing.invoices(invoice_id,patient_id,total,balance,created_by,status,invoice_number,issued_at) VALUES (?,?,5.00,5.00,?,?,?,?)",
-                invoice,patient,actor,status,status.equals("DRAFT")?null:invoice.toString(),status.equals("DRAFT")?null:java.sql.Timestamp.from(java.time.Instant.now()));
+        owner.update("INSERT INTO billing.invoices(invoice_id,patient_id,total,balance,created_by) VALUES (?,?,5.00,5.00,?)",
+                invoice,patient,actor);
         owner.update("INSERT INTO billing.invoice_items(invoice_id,patient_id,item_id) VALUES (?,?,?)",invoice,patient,item);
         owner.update("UPDATE billing.billable_items SET status='BILLED',version=version+1,updated_at=clock_timestamp() WHERE item_id=?",item);
+        if (status.equals("ISSUED")) owner.update("UPDATE billing.invoices SET status='ISSUED',version=2,invoice_number=?,issued_at=clock_timestamp(),updated_at=clock_timestamp() WHERE invoice_id=?",
+                invoice.toString(),invoice);
         return invoice;
     }
     @Test void correctsUnissuedAllocatedItemAndRecomputesDraftTotals() {
