@@ -5,6 +5,8 @@ Backend microservice for the Billing bounded context of **DI LUCCA Dental Care &
 
 Developed as part of the Distributed Systems 2026-B project at CORHUILA.
 
+Latest local validation: [connected Portal acceptance and demo cleanup](docs/integration/local-connected-portal-2026-11-08.md).
+
 ## Project Overview
 
 The Billing service is responsible for the financial operations of the dental care platform, including procedure pricing, invoice management, manual charges, and payment registration.
