@@ -42,6 +42,7 @@ class ClinicalChargeReconciliationTest {
             owner.update("DELETE FROM billing.procedure_charge_receipts WHERE encounter_account_id=?",account);
             owner.update("DELETE FROM billing.encounter_charge_receipts WHERE encounter_account_id=?",account);
             owner.update("DELETE FROM billing.outbox_events WHERE aggregate_id=?",account);
+            owner.update("DELETE FROM billing.price_corrections WHERE item_id IN(SELECT item_id FROM billing.billable_items WHERE encounter_account_id=?)",account);
             owner.update("DELETE FROM billing.billable_items WHERE encounter_account_id=?",account);
             owner.update("DELETE FROM billing.encounter_accounts WHERE encounter_account_id=?",account);
         }
@@ -53,6 +54,8 @@ class ClinicalChargeReconciliationTest {
         owner.update("DELETE FROM billing.encounter_freezes WHERE clinical_record_id=?",id("82",2));
         owner.update("DELETE FROM billing.encounter_write_gates WHERE clinical_record_id=?",id("82",2));
         owner.update("DELETE FROM billing.procedure_prices WHERE procedure_code=?",code);
+        owner.update("DELETE FROM billing.additional_price_rules WHERE rule_code=?",code);
+        owner.update("DELETE FROM billing.idempotency_records WHERE actor_id=?",id("81",9).toString());
     }
     @Test void usesCompletedAtAndPublishesOneProcedureAndEncounterFact() throws Exception {
         prices(); freeze(); project("declaration"); assertFalse(reconcile());
@@ -105,5 +108,19 @@ class ClinicalChargeReconciliationTest {
         assertFalse(reconcile()); freeze(); prices();
         assertEquals(1,worker.sweep(1)); assertTrue(reconcile());
         assertEquals(0,worker.sweep(1));
+    }
+    @Test void approvalRuleProducesProposedSnapshotButNoFinancialCompletionUntilCorrection() throws Exception {
+        prices(); freeze();
+        owner.update("INSERT INTO billing.additional_price_rules(rule_id,rule_code,item_type,unit_price,requires_approval,valid_from,version,created_by,created_at,updated_at) VALUES (?,?,'ADDITIONAL_MATERIAL',10.00,TRUE,'2026-01-01',1,?,now(),now())",
+                UUID.randomUUID(),code,id("81",9));
+        String extra="{\"type\":\"ADDITIONAL_MATERIAL\",\"code\":\""+code+"\",\"quantity\":\"0.5000\",\"clinicalReason\":\"Protected fixture\",\"sourceRecordId\":\""+id("81",6)+"\"}";
+        new JdbcClinicalSourceProjection(runtime,mapper).ingest(fixture("procedure").replace("\"additionalItems\":[]","\"additionalItems\":["+extra+"]"));
+        project("declaration"); assertFalse(reconcile());
+        assertEquals(Boolean.TRUE,owner.queryForObject("SELECT approval_required FROM billing.billable_items WHERE source_record_id=?",Boolean.class,id("81",6)));
+        assertEquals(0,owner.queryForObject("SELECT count(*) FROM billing.procedure_charge_receipts WHERE procedure_id=?",Integer.class,id("81",3)));
+        new JdbcPriceCorrectionRecording(runtime,mapper).record(UUID.randomUUID(),id("81",9),id("81",6),
+                new com.dilucca.billing.api.items.PriceCorrectionInput(new java.math.BigDecimal("37.11"),"Administrative correction",1));
+        assertTrue(reconcile()); assertTrue(reconcile());
+        assertEquals("19.57",owner.queryForObject("SELECT event_body->'payload'->>'total' FROM billing.outbox_events WHERE event_type='EncounterChargesCompleted' AND aggregate_id IN(SELECT encounter_account_id FROM billing.encounter_accounts WHERE clinical_record_id=?)",String.class,id("82",2)));
     }
 }
