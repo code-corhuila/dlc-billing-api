@@ -20,7 +20,14 @@ public class BillingAppointmentsConfiguration {
     @Bean
     FinalizedAppointments finalizedAppointments(@Value("${BILLING_APPOINTMENTS_ORIGIN:}") String origin,
             @Value("${BILLING_APPOINTMENTS_SERVICE_TOKEN_FILE:}") String file,
-            @Value("${BILLING_APPOINTMENTS_LOCAL_DEVELOPMENT:false}") boolean local) {
+            @Value("${BILLING_APPOINTMENTS_LOCAL_DEVELOPMENT:false}") boolean local,
+            ServiceCredentials credentials) {
+        var issued = credentials.forAudience("appointments-api", "appointments:encounter-status:read assignments:read");
+        if (issued != null && !origin.isBlank()) {
+            return new AppointmentFinalizationClient(URI.create(origin), () -> {
+                try { return issued.get(); } catch (RuntimeException unavailable) { throw new InvoiceDraftUnavailable(); }
+            }, Duration.ofSeconds(3), local);
+        }
         if (origin.isBlank() && file.isBlank()) return (appointment,patient) -> { throw new InvoiceDraftUnavailable(); };
         if (origin.isBlank() || file.isBlank() || !Path.of(file).isAbsolute()) {
             throw new IllegalArgumentException("Private Appointments origin and absolute credential path required");
