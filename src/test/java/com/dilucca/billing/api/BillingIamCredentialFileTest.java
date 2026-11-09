@@ -28,7 +28,8 @@ class BillingIamCredentialFileTest {
         try {
             Path credential=directory.resolve("service-token");
             var client=new BillingIamSessionConfiguration().iamSessionValidationClient(
-                    "http://127.0.0.1:"+server.getAddress().getPort(),credential.toString(),true);
+                    "http://127.0.0.1:"+server.getAddress().getPort(),credential.toString(),true,
+                    new ServiceCredentials("","billing-api","",true));
             assertThrows(IllegalStateException.class,()->client.isActive("staff-token"));
             Files.writeString(credential,"first-service-token\n");
             assertTrue(client.isActive("staff-token"));
