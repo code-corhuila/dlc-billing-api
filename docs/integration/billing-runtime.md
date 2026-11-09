@@ -72,3 +72,7 @@ Local verification on 2026-11-06: Maven `verify` passed 100 tests with PostgreSQ
 16, with zero skipped tests, and generated the executable JAR used by the image.
 All five deployment tests passed, including twelve HTTP authentication-denial
 cases. No Gateway/IAM end-to-end success is inferred from those results.
+
+## IAM-issued service tokens (ADR-020)
+
+With `BILLING_SERVICE_CLIENT_SECRET_FILE` (an absolute path) and the optional `BILLING_SERVICE_CLIENT_ID` (default `billing-api`) set, Billing stops reading `BILLING_IAM_SERVICE_TOKEN_FILE` and `BILLING_APPOINTMENTS_SERVICE_TOKEN_FILE`. Instead it requests 15-minute tokens from `BILLING_IAM_ORIGIN` at `POST /internal/v1/service-tokens`: audience `auth-service` with `identity:validate`, and audience `appointments-api` with `appointments:encounter-status:read assignments:read`. Each token is reused until two thirds of its lifetime. Plain `http` is accepted only with `BILLING_IAM_LOCAL_DEVELOPMENT=true`. A failure counts as an unavailable credential (fail closed).
