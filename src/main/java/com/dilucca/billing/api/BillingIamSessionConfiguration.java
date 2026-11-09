@@ -15,8 +15,13 @@ public class BillingIamSessionConfiguration {
     @Bean
     IamSessionValidationClient iamSessionValidationClient(
             @Value("${BILLING_IAM_ORIGIN}") String origin,
-            @Value("${BILLING_IAM_SERVICE_TOKEN_FILE}") String credentialFile,
-            @Value("${BILLING_IAM_LOCAL_DEVELOPMENT:false}") boolean localDevelopment) {
+            @Value("${BILLING_IAM_SERVICE_TOKEN_FILE:}") String credentialFile,
+            @Value("${BILLING_IAM_LOCAL_DEVELOPMENT:false}") boolean localDevelopment,
+            ServiceCredentials credentials) {
+        var issued = credentials.forAudience("auth-service", "identity:validate");
+        if (issued != null) {
+            return new IamSessionValidationClient(URI.create(origin), issued, Duration.ofSeconds(3), localDevelopment);
+        }
         Path path = Path.of(credentialFile);
         if (!path.isAbsolute()) throw new IllegalArgumentException("Absolute service credential path required");
         return new IamSessionValidationClient(URI.create(origin), () -> {
