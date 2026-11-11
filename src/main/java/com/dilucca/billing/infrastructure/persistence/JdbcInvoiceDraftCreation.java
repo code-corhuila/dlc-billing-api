@@ -40,8 +40,10 @@ public final class JdbcInvoiceDraftCreation {
                         request.itemIds().toArray());
                 if (sources.size()!=request.itemIds().size() || sources.stream().anyMatch(source ->
                         !source.patient().equals(request.patientId()) || !source.status().equals("UNBILLED")
-                        || source.allocated() || !source.completed() || request.appointmentId()!=null
+                        || source.allocated() || request.appointmentId()!=null
                         && !source.appointment().equals(request.appointmentId()))) throw conflict();
+                if (sources.stream().anyMatch(source -> !source.completed()))
+                    throw new InvoiceDraftConflict("ENCOUNTER_PRICING_PENDING");
                 BigDecimal total=sources.stream().map(Source::amount).reduce(new BigDecimal("0.00"),BigDecimal::add);
                 if (total.compareTo(new BigDecimal("999999999999.99"))>0) throw conflict();
                 Map<UUID,Long> validations=new LinkedHashMap<>();

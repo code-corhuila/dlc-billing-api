@@ -1,6 +1,7 @@
 package com.dilucca.billing.api.invoices;
 
 import com.dilucca.billing.infrastructure.pdf.InvoicePdfRenderer;
+import com.dilucca.billing.infrastructure.pdf.InvoicePatientNames;
 import com.dilucca.billing.infrastructure.persistence.JdbcInvoiceEventQuery;
 import com.dilucca.billing.infrastructure.persistence.JdbcPaymentRecording;
 import java.math.BigDecimal;
@@ -15,7 +16,8 @@ import org.springframework.web.bind.annotation.*;
 public class FinancialDeliveryController {
     private final JdbcInvoiceEventQuery events;
     private final InvoicePdfRenderer renderer;
-    public FinancialDeliveryController(JdbcInvoiceEventQuery events,InvoicePdfRenderer renderer) { this.events=events; this.renderer=renderer; }
+    private final InvoicePatientNames patients;
+    public FinancialDeliveryController(JdbcInvoiceEventQuery events,InvoicePdfRenderer renderer,InvoicePatientNames patients) { this.events=events; this.renderer=renderer; this.patients=patients; }
     private UUID uuid(String value) {
         UUID id=UUID.fromString(value); if(!id.toString().equalsIgnoreCase(value)) throw new IllegalArgumentException(); return id;
     }
@@ -25,8 +27,9 @@ public class FinancialDeliveryController {
     }
     @GetMapping("/pdf")
     public ResponseEntity<byte[]> pdf(@PathVariable String id,@RequestParam List<String> sourceEventId) {
+        var invoice=state(id,sourceEventId).invoice();
         return ResponseEntity.ok().contentType(MediaType.APPLICATION_PDF).cacheControl(CacheControl.noStore())
-                .header("X-Content-Type-Options","nosniff").body(renderer.render(state(id,sourceEventId).invoice()));
+                .header("X-Content-Type-Options","nosniff").body(renderer.render(invoice,patients.read(invoice.patientId())));
     }
     @GetMapping("/notification-summary")
     public ResponseEntity<?> summary(@PathVariable String id,@RequestParam List<String> sourceEventId) {

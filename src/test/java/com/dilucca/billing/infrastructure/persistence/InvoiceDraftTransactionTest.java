@@ -72,7 +72,8 @@ class InvoiceDraftTransactionTest {
         owner.update("UPDATE billing.encounter_accounts SET status='DECLARED' WHERE encounter_account_id=?",account);
         AtomicInteger reads=new AtomicInteger();
         var service=service((id,p)->{reads.incrementAndGet();return 7;});
-        assertThrows(InvoiceDraftConflict.class,()->service.create(UUID.randomUUID(),actor,request()));
+        assertEquals("ENCOUNTER_PRICING_PENDING",assertThrows(InvoiceDraftConflict.class,
+                ()->service.create(UUID.randomUUID(),actor,request())).code());
         assertEquals(0,reads.get());
         assertEquals(2L,owner.queryForObject("SELECT count(*) FROM billing.billable_items WHERE encounter_account_id=? AND status='UNBILLED'",Long.class,account));
         assertEquals(0L,owner.queryForObject("SELECT count(*) FROM billing.invoices WHERE created_by=?",Long.class,actor));

@@ -5,6 +5,8 @@ import com.dilucca.billing.api.items.BillableItem;
 import java.awt.Color;
 import java.io.*;
 import java.math.*;
+import java.time.*;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 import org.apache.pdfbox.pdmodel.*;
 import org.apache.pdfbox.pdmodel.common.PDRectangle;
@@ -19,6 +21,10 @@ public class InvoicePdfRenderer {
             LIGHT = new Color(0xf2f4f6), PALE = new Color(0xedf9f7);
 
     public byte[] render(Invoice invoice) {
+        return render(invoice, "No disponible");
+    }
+
+    public byte[] render(Invoice invoice, String patientName) {
         try (var document = new PDDocument(); var output = new ByteArrayOutputStream()) {
             var regular = font(document, "Inter-Regular.ttf");
             var bold = font(document, "Inter-SemiBold.ttf");
@@ -26,7 +32,7 @@ public class InvoicePdfRenderer {
                 var logo = PDImageXObject.createFromByteArray(document, source.readAllBytes(), "DI LUCCA");
                 document.getDocumentInformation().setTitle("Factura " + number(invoice));
                 document.getDocumentInformation().setAuthor("DI LUCCA");
-                try (var pages = new Pages(document, regular, bold, logo, invoice)) {
+                try (var pages = new Pages(document, regular, bold, logo, invoice, patientName)) {
                     pages.facts(); pages.tableHeader();
                     int index = 0;
                     for (var item : invoice.items()) pages.item(item, ++index);
@@ -62,12 +68,13 @@ public class InvoicePdfRenderer {
         private final PDFont regular, bold;
         private final PDImageXObject logo;
         private final Invoice invoice;
+        private final String patientName;
         private PDPageContentStream stream;
         private float y;
 
-        Pages(PDDocument document, PDFont regular, PDFont bold, PDImageXObject logo, Invoice invoice) throws IOException {
+        Pages(PDDocument document, PDFont regular, PDFont bold, PDImageXObject logo, Invoice invoice, String patientName) throws IOException {
             this.document = document; this.regular = regular; this.bold = bold;
-            this.logo = logo; this.invoice = invoice; next();
+            this.logo = logo; this.invoice = invoice; this.patientName = patientName; next();
         }
         private float width(String text, PDFont font, float size) throws IOException {
             return font.getStringWidth(text) / 1000 * size;
@@ -133,11 +140,10 @@ public class InvoicePdfRenderer {
             box(M, y - 132, WIDTH, 132, Color.WHITE);
             line(M, y, RIGHT); line(M, y - 132, RIGHT);
             text("DATOS DE LA FACTURA", M + 12, y - 19, 9, bold, TEAL);
-            fact("Paciente (ID)", invoice.patientId().toString(), M + 12, y - 39);
-            fact("Emisión", invoice.issuedAt() == null ? "Pendiente" : invoice.issuedAt().toString(), M + WIDTH / 2 + 8, y - 39);
+            fact("Paciente", patientName, M + 12, y - 39);
+            fact("Emisión", invoice.issuedAt() == null ? "Pendiente" : date(invoice.issuedAt()), M + WIDTH / 2 + 8, y - 39);
             fact("Identificador de factura", invoice.id().toString(), M + 12, y - 70);
-            fact("Actualización", invoice.updatedAt().toString(), M + WIDTH / 2 + 8, y - 70);
-            fact("Cita (ID)", invoice.appointmentId() == null ? "No asociada" : invoice.appointmentId().toString(), M + 12, y - 101);
+            fact("Actualización", date(invoice.updatedAt()), M + WIDTH / 2 + 8, y - 70);
             fact("Versión", Integer.toString(invoice.version()), M + WIDTH / 2 + 8, y - 101);
             y -= 159; text("Conceptos facturados", M, y, 13, bold, TEXT); y -= 17;
         }
@@ -210,5 +216,9 @@ public class InvoicePdfRenderer {
     }
     public static class Unavailable extends RuntimeException {
         public Unavailable() { super("Invoice PDF unavailable"); }
+    }
+
+    private static String date(Instant value) {
+        return DateTimeFormatter.ofPattern("uuuu-MM-dd HH:mm").withZone(ZoneId.of("America/Bogota")).format(value);
     }
 }

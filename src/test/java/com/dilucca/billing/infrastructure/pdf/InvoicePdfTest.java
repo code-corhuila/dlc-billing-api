@@ -14,6 +14,20 @@ import org.apache.pdfbox.text.PDFTextStripper;
 import org.junit.jupiter.api.Test;
 
 class InvoicePdfTest {
+    @Test void printsPatientAndMinutePrecisionWithoutAppointmentId() throws Exception {
+        var time=Instant.parse("2026-11-08T15:30:27Z");
+        var invoice=new Invoice(UUID.randomUUID(),UUID.randomUUID(),UUID.randomUUID(),"BIL-1",time,List.of(),
+                "10.00","0.00","COP","PAID",time,time,1);
+        try(var doc=Loader.loadPDF(new InvoicePdfRenderer().render(invoice, "Ana García"))) {
+            var text=new PDFTextStripper().getText(doc);
+            assertTrue(text.contains("Ana García"));
+            assertTrue(text.contains(invoice.id().toString()));
+            assertFalse(text.contains(invoice.appointmentId().toString()));
+            assertFalse(text.contains("Cita (ID)"));
+            assertTrue(text.contains("2026-11-08 10:30"));
+            assertFalse(text.contains("10:30:27"));
+        }
+    }
     @Test void rendersBrandedSinglePageAndExactSummaryWithoutInventedPatientDetails() throws Exception {
         var time=Instant.parse("2026-11-08T15:30:00Z");
         var patient=UUID.fromString("10000000-0000-4000-8000-000000000001");
