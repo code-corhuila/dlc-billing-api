@@ -26,7 +26,7 @@ class ShellPlatform(Platform):
         def nav(identity,label,path):
             return dict(id=identity,label=label,path=path,visibility=dict(rolesAny=[],permissionsAll=[]))
         registry=dict(contractVersion=1,registryRevision=self.prefix,portals=[
-            entry("iam","0.1.0-local",[]),entry("billing","2.0.0",[
+            entry("iam","0.1.0-local",[]),entry("billing",os.environ.get("BILLING_PORTAL_RELEASE","2.0.0"),[
                 nav("procedures","Procedimientos","/app/billing/procedures"),
                 nav("rules","Reglas adicionales","/app/billing/procedures/rules")])])
         (deployment/"portal-registry.json").write_text(json.dumps(registry))
