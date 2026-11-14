@@ -57,6 +57,9 @@ The local implementation includes:
   minimized financial projection for Administrator and Secretary/Assistant.
   It requires DB changesets 008/009; separately authorized Dentist reads and
   Clinical ingestion remain pending. See [the read evidence](docs/integration/billable-item-reads.md).
+- `GET /api/v1/invoices` and `GET /api/v1/invoices/{id}` for Administrator and
+  Secretary/Assistant, with persisted item snapshots and filtered pagination.
+  Requires DB changesets 010/011; see [invoice reads](docs/integration/invoice-reads.md).
 
 Successful price creation returns HTTP 201 with a relative `Location` identifying the created price. The administrator identity is derived from the verified JWT subject, never from the request body or identity headers.
 
@@ -70,7 +73,7 @@ Additional rule operations require `billing.additional_price_rules` from `billin
 
 - Provisioning and renewal of the separate `identity:validate` service credential for the connected private IAM session check. Staff JWTs cannot substitute for it.
 - Remaining Billing REST endpoints defined in the OpenAPI contract.
-- Invoice and payment persistence.
+- Invoice creation/issuance and payment persistence/transactions.
 - Browser acceptance of the Billing portal within the real shell; local HTTP
   routing, catalog writes, IAM session renewal and revocation are verified in
   [the shell integration report](docs/integration/real-shell-local-verification.md).
