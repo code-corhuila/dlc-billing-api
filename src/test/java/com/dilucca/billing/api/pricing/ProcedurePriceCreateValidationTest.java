@@ -11,7 +11,11 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 class ProcedurePriceCreateValidationTest {
     private final MockMvc mvc = MockMvcBuilders.standaloneSetup(
-            new ProcedurePriceController(mock(ProcedurePriceQueryService.class))).build();
+            new ProcedurePriceController(mock(ProcedurePriceQueryService.class),
+                    mock(ProcedurePriceCreateService.class)))
+            .setCustomArgumentResolvers(
+                    new org.springframework.security.web.method.annotation.AuthenticationPrincipalArgumentResolver())
+            .build();
     private static final String PATH = "/api/v1/procedure-prices";
     private static final String KEY = "d17204d4-b893-4086-9aca-b5bd04827f52";
     private static final String VALID = """
@@ -49,9 +53,9 @@ class ProcedurePriceCreateValidationTest {
     }
 
     @Test
-    void keepsValidRequestsUnavailableUntilPersistenceIsIntegrated() throws Exception {
+    void rejectsMissingStaffIdentityBeforeWriting() throws Exception {
         mvc.perform(post(PATH).header("Idempotency-Key", KEY)
                 .contentType("application/json").content(VALID))
-                .andExpect(status().isServiceUnavailable());
+                .andExpect(status().isUnauthorized());
     }
 }

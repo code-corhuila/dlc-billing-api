@@ -42,6 +42,7 @@ class ProcedurePriceCreatePostgresTest {
 
     @Autowired MockMvc mvc;
     @Autowired JdbcTemplate jdbc;
+    @Autowired tools.jackson.databind.json.JsonMapper mapper;
     @MockitoBean JwtDecoder decoder;
     private final UUID actor = UUID.randomUUID();
     private final UUID otherActor = UUID.randomUUID();
@@ -73,6 +74,10 @@ class ProcedurePriceCreatePostgresTest {
         MvcResult replay = send(key, body("150000.00", "2026-01-01T00:00:00Z"), "admin", 201);
         assertEquals(first.getResponse().getContentAsString(), replay.getResponse().getContentAsString());
         assertEquals(location, replay.getResponse().getHeader("Location"));
+        String reordered = "{\"validFrom\":\"2026-01-01T00:00:00+00:00\",\"basePrice\":\"150000.00\","
+                + "\"name\":\"Cleaning\",\"procedureCode\":\"" + code + "\"}";
+        assertEquals(first.getResponse().getContentAsString(),
+                send(key, reordered, "admin", 201).getResponse().getContentAsString());
         assertEquals(List.of(1, 2), jdbc.queryForList("SELECT version FROM billing.procedure_prices "
                 + "WHERE procedure_code = ? ORDER BY version", Integer.class, code));
         assertEquals(2, receiptCount());
@@ -83,8 +88,8 @@ class ProcedurePriceCreatePostgresTest {
     @Test
     void conflictsOnChangedPayloadAndReauthorizesRetries() throws Exception {
         send(key, body("150000.00", "2026-01-01T00:00:00Z"), "admin", 201);
-        send(key, body("175000.00", "2026-01-01T00:00:00Z"), "admin", 409)
-                .getResponse();
+        assertTrue(send(key, body("175000.00", "2026-01-01T00:00:00Z"), "admin", 409)
+                .getResponse().getContentAsString().contains("IDEMPOTENCY_CONFLICT"));
         send(key, body("150000.00", "2026-01-01T00:00:00Z"), "dentist", 403);
         mvc.perform(post("/api/v1/procedure-prices").header("Idempotency-Key", key)
                 .contentType("application/json").content(body("150000.00", "2026-01-01T00:00:00Z")))
@@ -128,10 +133,69 @@ class ProcedurePriceCreatePostgresTest {
                 Integer.class, code);
     }
 
+    @Test
+    void comparesValidityAtDatabasePrecisionWithoutConsumingConflictingKeys() throws Exception {
+        String initial = body("150000.00", "2026-01-01T00:00:00.000000100Z");
+        MvcResult first = send(key, initial, "admin", 201);
+        UUID replacementKey = UUID.randomUUID();
+        send(replacementKey, body("175000.00", "2026-01-01T00:00:00.000000200Z"), "admin", 409);
+        assertEquals(1, receiptCount());
+        assertNull(jdbc.queryForObject("SELECT valid_to FROM billing.procedure_prices "
+                + "WHERE procedure_code = ?", java.sql.Timestamp.class, code));
+        send(replacementKey, body("175000.00", "2026-01-01T00:00:00.000000600Z"), "admin", 201);
+        assertEquals(first.getResponse().getContentAsString(),
+                send(key, initial, "admin", 201).getResponse().getContentAsString());
+        assertEquals(2, receiptCount());
+        assertEquals(List.of(1, 2), jdbc.queryForList("SELECT version FROM billing.procedure_prices "
+                + "WHERE procedure_code = ? ORDER BY version", Integer.class, code));
+    }
+
+    @Test
+    void receiptInsertFailureRollsBackPriceAndPreviousValidity() throws Exception {
+        send(key, body("150000.00", "2026-01-01T00:00:00Z"), "admin", 201);
+        var failingJdbc = new JdbcTemplate(jdbc.getDataSource()) {
+            @Override
+            public int update(String sql, Object... args) {
+                if (sql.contains("INSERT INTO billing.idempotency_records")) {
+                    // Cause a real PostgreSQL NOT NULL violation after the business write.
+                    return super.update("INSERT INTO billing.idempotency_records (record_id) VALUES (?)",
+                            UUID.randomUUID());
+                }
+                return super.update(sql, args);
+            }
+        };
+        var service = new com.dilucca.billing.infrastructure.persistence.JdbcProcedurePriceCreationService(
+                failingJdbc, mapper);
+        UUID failedKey = UUID.randomUUID();
+        var request = new com.dilucca.billing.domain.pricing.ProcedurePriceCatalog(
+                code, "Cleaning", "175000.00", Instant.parse("2026-02-01T00:00:00Z"));
+        assertThrows(org.springframework.dao.DataIntegrityViolationException.class,
+                () -> service.create(failedKey, actor, request));
+        assertEquals(1, receiptCount());
+        assertEquals(1, jdbc.queryForObject("SELECT COUNT(*) FROM billing.procedure_prices "
+                + "WHERE procedure_code = ?", Integer.class, code));
+        assertNull(jdbc.queryForObject("SELECT valid_to FROM billing.procedure_prices "
+                + "WHERE procedure_code = ?", java.sql.Timestamp.class, code));
+        send(failedKey, body("175000.00", "2026-02-01T00:00:00Z"), "admin", 201);
+        assertEquals(2, receiptCount());
+    }
+
     private MvcResult send(UUID requestKey, String body, String token, int expected) throws Exception {
-        return mvc.perform(post("/api/v1/procedure-prices").header("Authorization", "Bearer " + token)
+        var result = mvc.perform(post("/api/v1/procedure-prices").header("Authorization", "Bearer " + token)
                 .header("Idempotency-Key", requestKey).contentType("application/json").content(body))
-                .andExpect(status().is(expected)).andReturn();
+                .andExpect(status().is(expected));
+        if (expected == 201) {
+            result.andExpect(content().contentTypeCompatibleWith("application/json"))
+                    .andExpect(jsonPath("$.id").isString())
+                    .andExpect(jsonPath("$.basePrice").value(mapper.readTree(body).get("basePrice").asString()))
+                    .andExpect(jsonPath("$.currency").value("COP"))
+                    .andExpect(jsonPath("$.status").value("ACTIVE"))
+                    .andExpect(jsonPath("$.version").isNumber())
+                    .andExpect(jsonPath("$.validFrom").isString())
+                    .andExpect(jsonPath("$.createdAt").isString())
+                    .andExpect(jsonPath("$.updatedAt").isString());
+        }
+        return result.andReturn();
     }
 
     private String body(String amount, String from) {
