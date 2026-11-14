@@ -127,3 +127,32 @@ selected external network, with no published deployment port. See
 the five passing packaging checks. A fresh JAR passed all 100 Maven tests.
 Owner runtime grants, private eligibility wiring and Gateway routes remain pending;
 this packaging increment does not establish a complete live integration.
+
+## Runtime permissions and session enforcement follow-up: 2026-11-06
+
+Billing DB branch `feat/billing-runtime-permissions` adds bootstrap identities and
+changeset 007 with catalog SELECT/INSERT, validity/audit-column UPDATE and immutable
+idempotency responses. Seven changesets migrated successfully as the limited
+migrator on an isolated PostgreSQL 16 database; writes/rollback, denied DDL,
+cross-schema access and historical rewrites were checked. Existing checksums validate.
+
+Billing now runs private IAM eligibility checks after JWT verification on each
+authenticated request. Inactivity returns 401; failed validation returns 503 before
+business execution, including replayed writes. Credentials are reread from a
+read-only mounted directory and must be provisioned/renewed externally. The updated
+JAR passed 105 Java tests and all five real-container packaging checks. No live
+IAM login or complete end-to-end success is asserted by these boundary tests.
+
+The real IAM issuer emits an empty `permissions` array; Billing now accepts that
+required string-array claim while still requiring nonempty staff roles and all
+signature/issuer/audience/identity checks. A signed-token regression test reproduced
+the former rejection. Final Maven verification passed 107 tests with no skips.
+
+Gateway `origin/develop` advanced to `fdbed71` with the previously missing owner
+routes and the Annex F presence-only edge controls (now reflected in official docs
+at `6953a34`). Local `feat/billing-auth-owner-routing` replaces the provisional
+`billing-api` target with the actual `billing-service:8080` and permits the approved
+public email-verification request. Five tests passed against the real Billing
+image, not a substitute service; protected requests reached its JWT rejection,
+private validation stayed inaccessible and a stopped owner returned 503. Public
+IAM operations returned 503 because no real IAM was running. NGINX/Compose validate.
