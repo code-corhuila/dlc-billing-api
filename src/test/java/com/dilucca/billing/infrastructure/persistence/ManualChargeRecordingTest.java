@@ -102,4 +102,15 @@ class ManualChargeRecordingTest {
         } finally { owner.execute("DROP TRIGGER "+trigger+" ON billing.outbox_events"); owner.execute("DROP FUNCTION billing."+trigger+"()"); }
         assertEquals(201,record(UUID.randomUUID()).status());
     }
+    @Test void protectedReadAllowsAdministratorAndSourceDentistWithCurrentAssignmentOnly() {
+        UUID charge=UUID.fromString(mapper.readTree(record(UUID.randomUUID()).body()).get("id").stringValue());
+        var query=new JdbcManualChargeQuery(runtime,(patient,dentist) -> assigned.get());
+        assertEquals("37.11",query.find(charge,id("81",9),"DENTIST").get("unitPrice"));
+        assigned.set(false);
+        assertThrows(JdbcManualChargeRecording.Missing.class,() -> query.find(charge,id("81",9),"DENTIST"));
+        assertEquals("Protected owner reason",query.find(charge,UUID.randomUUID(),"ADMINISTRATOR").get("justification"));
+        assertThrows(JdbcManualChargeRecording.Missing.class,() -> query.find(charge,UUID.randomUUID(),"DENTIST"));
+        assertThrows(JdbcManualChargeRecording.Missing.class,() -> query.find(UUID.randomUUID(),id("81",9),"DENTIST"));
+        assertThrows(JdbcManualChargeRecording.Forbidden.class,() -> query.find(charge,id("81",9),"SECRETARY_ASSISTANT"));
+    }
 }
