@@ -1,5 +1,9 @@
 # Billing API contract audit - 2026-11-07
 
+> Historical source snapshot. Later local implementation and the intentionally
+> deferred cross-service gates are described in
+> [pre-integration readiness](pre-integration-readiness.md).
+
 Scope: local API HEAD ac288ee on feat/billing-clinical-ingestion-model, including
 untracked work; official dlc-docs checkout 31fb316; Billing DB 3c8e4a3. This is
 a source/contract/evidence audit, not a fresh certification of a deployed stage.
