@@ -33,11 +33,11 @@ class InvoiceReadIntegrationTest(unittest.TestCase):
              item_type,description,quantity,unit_price,created_by,status,justification)
             VALUES ('{item}','{account}','{patient}','{appointment}','{uuid4()}','{uuid4()}',
             'ADDITIONAL_MATERIAL','Second financial fixture',1,10.01,'{uuid4()}','BILLED','Protected fixture');
-            INSERT INTO billing.invoices(invoice_id,patient_id,total,balance,created_by)
-            VALUES ('{invoice}','{patient}',10.01,10.01,'{uuid4()}');
+            INSERT INTO billing.invoices(invoice_id,patient_id,total,balance,created_by,created_at)
+            VALUES ('{invoice}','{patient}',10.01,10.01,'{uuid4()}','2026-11-06T00:00:00Z');
             INSERT INTO billing.invoice_items(invoice_id,patient_id,item_id)
             VALUES ('{invoice}','{patient}','{item}');
-            UPDATE billing.invoices SET created_at='2026-11-06T00:00:00Z'; COMMIT;""")
+            COMMIT;""")
         first="50000000-0000-4000-8000-000000000001"
         for page,identity in enumerate(sorted((first,invoice)),1):
             status,_,raw=p.request("GET",path+f"?page={page}&limit=1",token=token)
