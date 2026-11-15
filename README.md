@@ -1,25 +1,175 @@
-# dlc-billing-api
 
-> billing bounded context: service API
+# DI LUCCA — Billing API
 
-Part of the **LMS Library** distributed system — team `lms-library`, Grupo 2.
-Governance and documentation live in [`library-docs`](https://github.com/code-corhuila/library-docs).
+Backend microservice for the Billing bounded context of **DI LUCCA Dental Care & Technology**.
 
-## Branching
+Developed as part of the Distributed Systems 2026-B project at CORHUILA.
 
-Three permanent branches. **None of them accepts a direct commit** — you enter through a child
-branch and leave through a Pull Request.
+Latest local validation: [connected Portal acceptance and demo cleanup](docs/integration/local-connected-portal-2026-11-08.md).
 
+## Project Overview
+
+The Billing service is responsible for the financial operations of the dental care platform, including procedure pricing, invoice management, manual charges, and payment registration.
+
+The service follows the API contracts and domain rules maintained in the official DI LUCCA documentation repository.
+
+## Technology Stack
+
+- Java 21
+- Spring Boot 4
+- Maven
+- PostgreSQL
+- Liquibase (managed in a separate database repository)
+- JUnit 5
+
+## Architecture
+
+DI LUCCA uses a distributed architecture organized into bounded contexts:
+
+- IAM
+- Patients
+- Appointments
+- Clinical
+- Billing
+
+The Billing service owns its financial domain and uses the `billing` schema in PostgreSQL.
+
+Authentication, authorization, and external API routing are coordinated with the platform's IAM and API Gateway components.
+
+## Current Implementation
+
+The local implementation includes:
+
+- Exact monetary validation using `BigDecimal`.
+- Positive procedure prices in COP.
+- Procedure price validity periods.
+- Detection of overlapping validity intervals.
+- Required procedure catalog field validation.
+- JDBC persistence and paginated queries against PostgreSQL.
+- `GET /api/v1/procedure-prices` for Administrator, Dentist, and Secretary/Assistant.
+- `GET /api/v1/additional-price-rules` for Administrator and Secretary/Assistant, with pagination, exact unit prices, and stable ordering.
+- `POST /api/v1/procedure-prices` for Administrator, with strict JSON validation and a UUID `Idempotency-Key`.
+- `POST /api/v1/additional-price-rules` for Administrator, restricted to the four contract item types and `requiresApproval: false`.
+- Atomic price version creation, closure of previous validity, and preservation of historical prices.
+- Persistent idempotency scoped by actor, operation, and catalog source; identical retries return the stored HTTP 201 response and Location, while changed content returns HTTP 409.
+- At least seven days of idempotency retention, committed in the same transaction as the price write.
+- RS256 JWT signature verification through JWKS, issuer/audience validation, required claims, and role authorization.
+- HTTP, cryptographic, PostgreSQL concurrency, and rollback tests.
+- `GET /api/v1/billable-items` with filtered counts, stable pagination and a
+  minimized financial projection for Administrator and Secretary/Assistant.
+  It requires DB changesets 008/009; separately authorized Dentist reads and
+  Clinical ingestion remain pending. See [the read evidence](docs/integration/billable-item-reads.md).
+- `GET /api/v1/invoices` and `GET /api/v1/invoices/{id}` for Administrator and
+  Secretary/Assistant, with persisted item snapshots and filtered pagination.
+  Requires DB changesets 010/011; see [invoice reads](docs/integration/invoice-reads.md).
+- `POST /api/v1/invoices` atomically allocates owned sources after real
+  Appointments FINALIZADA validation; see [draft evidence](docs/integration/invoice-draft-real-owners.md).
+- `POST /api/v1/invoices/{id}/issuances` checks the confirmed version and source
+  evidence, then fixes financial identity and stores event/history/replay together.
+  Requires DB changesets 014/015; see [issuance](docs/integration/invoice-issuance-http.md).
+
+Successful price creation returns HTTP 201 with a relative `Location` identifying the created price. The administrator identity is derived from the verified JWT subject, never from the request body or identity headers.
+
+JWT verification requires the actual IAM deployment values for `BILLING_IAM_JWKS_URI`, `IAM_JWT_ISSUER`, and `IAM_JWT_AUDIENCE`. Do not use test issuers, keys, or addresses in a deployed environment.
+
+The POST requires `billing.idempotency_records` from the `billing-005-create-idempotency-records` changeset in `dlc-billing-db`. That migration remains on its local development branch and must be reviewed and promoted before deploying the POST to another environment.
+
+Additional rule operations require `billing.additional_price_rules` from `billing-006-create-additional-price-rules`, currently on the local `feat/billing-additional-price-rules-schema` database branch. The table enforces positive COP amounts, allowed item types, unique versions, and nonoverlapping active validity intervals. Creating a rule version closes the previous validity without rewriting its historical amount or approval metadata. The rule and its idempotent HTTP response are committed atomically.
+
+### Pending Integration
+
+- Provisioning and renewal of the separate `identity:validate` service credential for the connected private IAM session check. Staff JWTs cannot substitute for it.
+- Remaining Billing REST endpoints defined in the OpenAPI contract.
+- Clinical source ingestion, outbox relay, PDF and payment persistence/transactions.
+- Browser acceptance of the Billing portal within the real shell; local HTTP
+  routing, catalog writes, IAM session renewal and revocation are verified in
+  [the shell integration report](docs/integration/real-shell-local-verification.md).
+- Integrated QA validation before release promotion.
+
+These capabilities must follow the official contracts and must not introduce undocumented endpoints or events.
+See [the delivery gates](docs/integration/billing-delivery-gates.md) for the
+verified catalog scope and the missing invoice, payment and encounter work.
+
+## Related Repositories
+
+- [DI LUCCA Documentation](https://github.com/code-corhuila/dlc-docs)
+- [Billing Database](https://github.com/code-corhuila/dlc-billing-db)
+- [Billing Portal](https://github.com/code-corhuila/dlc-billing-portal)
+- [API Gateway](https://github.com/code-corhuila/dlc-api-gateway)
+- [Frontend Container](https://github.com/code-corhuila/dlc-front)
+
+## Build and Test
+
+Runtime container and Compose instructions are in
+[Billing runtime deployment](docs/integration/billing-runtime.md).
+
+Requirements:
+
+- JDK 21
+- Maven
+
+Run automated tests:
+
+```bash
+mvn clean test
 ```
-develop  <--PR--  feat/... fix/... chore/...
-qa       <--PR--  qa/...
-main     <--PR--  release/...  hotfix/...
+
+Build the application:
+
+```bash
+mvn clean package
 ```
 
-Promotion happens **by re-application** (`git cherry-pick -x`), never by merging one permanent
-branch into another: `merge develop -> qa` and `merge qa -> main` do not exist in this model.
+The generated application artifact is located in the `target/` directory.
 
-`main` requires **1 approval from `ariel5253`**. On `develop` and `qa` the team sets its own review
-rule.
+PostgreSQL tests are opt-in: supply `BILLING_TEST_JDBC_URL`, `BILLING_TEST_DB_USER`, and `BILLING_TEST_DB_PASSWORD` for an isolated migrated test database before running the suite. Without the JDBC URL, database tests are skipped; a successful unit-test run alone does not verify persistence. Keep credentials out of logs, source files, and commits. Always clean compiled output when switching branches.
 
-Full policy: `00-governance/branching-policy.md` in `library-docs`.
+## Branching and Contributions
+
+The project uses three permanent branches:
+
+- `develop` — development integration.
+- `qa` — quality assurance.
+- `main` — release branch.
+
+Changes are developed in short-lived branches, such as:
+
+- `feat/`
+- `fix/`
+- `chore/`
+- `docs/`
+
+All changes must be submitted through Pull Requests.
+
+Development practices:
+
+- Follow Conventional Commits.
+- Use TDD (RED → GREEN → REFACTOR) for behavioral changes.
+- Keep Pull Requests within 400 changed lines.
+- Validate tests and builds before requesting integration.
+- Do not introduce undocumented API endpoints or domain events.
+
+Branch promotion and review requirements must follow the current DI LUCCA governance documentation.
+
+## Documentation
+
+Official project documentation:
+
+https://github.com/code-corhuila/dlc-docs
+
+API contracts:
+
+`07-api/contracts/openapi/billing-service.yaml`
+
+Billing service documentation:
+
+`09-microservices/services/06-billing-service/`
+
+Database migrations are maintained separately in `dlc-billing-db`.
+
+## Project
+
+**DI LUCCA Dental Care & Technology**
+
+CORHUILA — Systems Engineering
+Distributed Systems — 2026-B
